@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Rotina da Ana</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rotina Ana">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#fdf3f8">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f3a6c1'/%3E%3Ctext x='50' y='66' font-size='58' text-anchor='middle'%3E%F0%9F%8D%BC%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f3a6c1'/%3E%3Ctext x='50' y='66' font-size='58' text-anchor='middle'%3E%F0%9F%8D%BC%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --pink:#f3a6c1; --pink-light:#fdf3f8; --blue:#a6c8f3; --mint:#a6e3d0;
+  --ink:#3a2e35; --muted:#8a7a83; --card:#ffffff; --bg:#fdf5f8;
+  --danger:#e57373; --shadow:0 2px 10px rgba(60,30,45,0.08);
+  --radius:18px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --ink:#f3e9ee; --muted:#b7a6b0; --card:#2a2029; --bg:#1c1620; --pink-light:#3a2733; }
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+body{padding-bottom:calc(78px + env(safe-area-inset-bottom)); min-height:100vh;}
+h1,h2,h3{margin:0 0 4px;}
+button{font-family:inherit;}
+.hidden{display:none !important;}
+#app{max-width:520px;margin:0 auto;padding:16px 16px 4px;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 16px;}
+.topbar h1{font-size:22px;}
+.topbar .age{color:var(--muted);font-size:13px;}
+.gear{background:none;border:none;font-size:22px;cursor:pointer;padding:8px;}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:14px;}
+.card h3{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:600;}
+.status-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.status-item{background:var(--pink-light);border-radius:14px;padding:12px;}
+.status-item .label{font-size:12px;color:var(--muted);}
+.status-item .value{font-size:16px;font-weight:700;margin-top:2px;}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.quick-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--card);border:none;border-radius:var(--radius);padding:20px 8px;box-shadow:var(--shadow);font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;}
+.quick-btn .emoji{font-size:30px;}
+.quick-btn.active{background:linear-gradient(135deg,var(--pink),var(--blue));color:#fff;}
+.timeline-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.05);}
+.timeline-item:last-child{border-bottom:none;}
+.timeline-item .icon{font-size:22px;width:34px;text-align:center;}
+.timeline-item .info{flex:1;}
+.timeline-item .info .title{font-weight:600;font-size:14px;}
+.timeline-item .info .sub{font-size:12px;color:var(--muted);}
+.timeline-item .del{background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:4px 8px;}
+.tabbar{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);box-shadow:0 -2px 10px rgba(0,0,0,.06);padding:8px 4px calc(8px + env(safe-area-inset-bottom));z-index:20;}
+.tab{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:6px 2px;cursor:pointer;}
+.tab .emoji{font-size:20px;}
+.tab.active{color:var(--pink);}
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:30;display:flex;align-items:flex-end;}
+.sheet{background:var(--card);width:100%;border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;}
+.sheet h2{font-size:18px;margin-bottom:14px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;}
+.field textarea{resize:vertical;min-height:60px;}
+.opt-row{display:flex;gap:8px;flex-wrap:wrap;}
+.opt-btn{flex:1;min-width:80px;padding:12px 8px;border-radius:12px;border:2px solid rgba(0,0,0,.08);background:var(--bg);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;}
+.opt-btn.selected{border-color:var(--pink);background:var(--pink-light);}
+.btn{width:100%;padding:14px;border-radius:14px;border:none;background:var(--pink);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:6px;}
+.btn.secondary{background:var(--bg);color:var(--ink);border:1px solid rgba(0,0,0,.1);}
+.btn.danger{background:var(--danger);}
+.close-x{position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
+.sheet{position:relative;}
+.big-timer{text-align:center;padding:20px 0;}
+.big-timer .t{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;}
+.big-timer .l{color:var(--muted);font-size:13px;margin-top:2px;}
+.leap-card{border-radius:16px;padding:16px;background:linear-gradient(135deg,var(--mint),var(--blue));color:#1c2e2a;margin-bottom:14px;}
+.leap-card h3{color:#1c2e2a;opacity:.75;}
+.leap-list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.05);}
+.leap-list-item:last-child{border-bottom:none;}
+.leap-list-item .dot{width:10px;height:10px;border-radius:50%;background:#ccc;flex-shrink:0;}
+.leap-list-item.past .dot{background:var(--mint);}
+.leap-list-item.current .dot{background:var(--pink);}
+.leap-list-item .txt{flex:1;}
+.leap-list-item .txt .t1{font-weight:600;font-size:14px;}
+.leap-list-item .txt .t2{font-size:12px;color:var(--muted);}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:var(--pink-light);color:var(--pink);}
+.date-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.date-nav button{background:var(--card);border:none;box-shadow:var(--shadow);border-radius:10px;padding:8px 14px;font-size:16px;cursor:pointer;}
+.date-nav .d{font-weight:700;font-size:15px;}
+.empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px;}
+.tip{background:var(--pink-light);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5;margin-top:10px;}
+.center-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+</style>
+</head>
+<body>
+
+<div id="onboarding" class="center-screen hidden">
+  <div class="card" style="width:100%;max-width:400px;">
+    <h2 style="font-size:20px;">👶 Vamos começar!</h2>
+    <p style="color:var(--muted);font-size:14px;margin-top:4px;">Cadastre o bebê pra começar a registrar a rotina.</p>
+    <div class="field" style="margin-top:16px;">
+      <label>Nome do bebê</label>
+      <input type="text" id="ob-name" placeholder="Ana" value="Ana">
+    </div>
+    <div class="field">
+      <label>Data de nascimento</label>
+      <input type="date" id="ob-birth">
+    </div>
+    <button class="btn" id="ob-save">Começar a usar</button>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+
+  <div class="topbar">
+    <div>
+      <h1 id="baby-name">Ana</h1>
+      <div class="age" id="baby-age">—</div>
+    </div>
+    <button class="gear" id="open-settings">⚙️</button>
+  </div>
+
+  <!-- HOME -->
+  <div id="tab-home" class="tabcontent">
+    <div class="card" id="live-status-card"></div>
+
+    <div class="card">
+      <h3>Registrar agora</h3>
+      <div class="quick-grid">
+        <button class="quick-btn" data-action="fralda"><span class="emoji">🧷</span>Fralda</button>
+        <button class="quick-btn" data-action="sono"><span class="emoji">😴</span>Sono</button>
+        <button class="quick-btn" data-action="mamada"><span class="emoji">🍼</span>Mamada</button>
+        <button class="quick-btn" data-action="atividade"><span class="emoji">🧸</span>Atividade</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Últimos registros</h3>
+      <div id="recent-list"></div>
+    </div>
+  </div>
+
+  <!-- HISTORICO -->
+  <div id="tab-historico" class="tabcontent hidden">
+    <div class="date-nav">
+      <button id="hist-prev">‹</button>
+      <div class="d" id="hist-date-label">Hoje</div>
+      <button id="hist-next">›</button>
+    </div>
+    <div class="card">
+      <div id="hist-list"></div>
+    </div>
+  </div>
+
+  <!-- SONO -->
+  <div id="tab-sono" class="tabcontent hidden">
+    <div class="card" id="sono-window-card"></div>
+    <div class="card" id="sono-total-card"></div>
+    <div class="card">
+      <h3>Sonos de hoje</h3>
+      <div id="sono-today-list"></div>
+    </div>
+  </div>
+
+  <!-- DESENVOLVIMENTO -->
+  <div id="tab-dev" class="tabcontent hidden">
+    <div id="leap-current-card"></div>
+    <div class="card">
+      <h3>Linha do tempo dos saltos</h3>
+      <div id="leap-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="tabbar hidden" id="tabbar">
+  <button class="tab active" data-tab="home"><span class="emoji">🏠</span>Início</button>
+  <button class="tab" data-tab="historico"><span class="emoji">📋</span>Histórico</button>
+  <button class="tab" data-tab="sono"><span class="emoji">😴</span>Sono</button>
+  <button class="tab" data-tab="dev"><span class="emoji">🌱</span>Desenvolvimento</button>
+</div>
+
+<div id="sheet-root"></div>
+
+<script>
+const SUPABASE_URL = "https://mujljhojmxffmqmijvhb.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11amxqaG9qbXhmZm1xbWlqdmhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTU1NzIsImV4cCI6MjEwMjA3MTU3Mn0.i1xQ-73xP7-GFxZ7im1Cs5OjsUXb01BhIO6mfmdwmhE";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let baby = null;
+let state = {
+  diapers: [], sleeps: [], feedings: [], activities: [],
+  histDate: new Date(),
+  activeTab: 'home',
+  liveTick: null,
+};
+
+// ---------- helpers ----------
+const $ = sel => document.querySelector(sel);
+const pad = n => String(n).padStart(2,'0');
+function fmtTime(d){ d=new Date(d); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function fmtDateLabel(d){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  const diff = Math.round((today-dd)/86400000);
+  if(diff===0) return 'Hoje';
+  if(diff===1) return 'Ontem';
+  return dd.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function dayRange(d){
+  const start = new Date(d); start.setHours(0,0,0,0);
+  const end = new Date(d); end.setHours(23,59,59,999);
+  return [start.toISOString(), end.toISOString()];
+}
+function minsBetween(a,b){ return Math.round((new Date(b)-new Date(a))/60000); }
+function fmtDur(mins){
+  if(mins==null || isNaN(mins)) return '—';
+  mins = Math.max(0,Math.round(mins));
+  const h = Math.floor(mins/60), m = mins%60;
+  if(h>0) return h+'h'+pad(m)+'m';
+  return m+'min';
+}
+function timeAgo(d){
+  const mins = minsBetween(d, new Date());
+  if(mins<1) return 'agora mesmo';
+  if(mins<60) return 'há '+mins+' min';
+  const h = Math.floor(mins/60);
+  if(h<24) return 'há '+h+'h'+(mins%60?pad(mins%60)+'m':'');
+  return 'há '+Math.floor(h/24)+' dia(s)';
+}
+function ageInfo(birthDate){
+  const now = new Date();
+  const b = new Date(birthDate+'T00:00:00');
+  const days = Math.floor((now-b)/86400000);
+  const weeks = Math.floor(days/7);
+  const months = Math.floor(days/30.44);
+  const remDays = Math.floor(days - months*30.44);
+  return {days, weeks, months, remDays,
+    label: months<1 ? `${weeks} semana(s) de vida` : `${months} ${months===1?'mês':'meses'} e ${remDays} dia(s)`};
+}
+
+function closeSheet(){ $('#sheet-root').innerHTML=''; }
+
+// ---------- data load ----------
+async function loadBaby(){
+  const {data} = await db.from('baby').select('*').order('created_at',{ascending:true}).limit(1);
+  baby = (data && data[0]) || null;
+}
+
+async function loadAll(){
+  if(!baby) return;
+  const [d,s,f,a] = await Promise.all([
+    db.from('diaper_changes').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(200),
+    db.from('sleep_sessions').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(200),
+    db.from('feedings').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(200),
+    db.from('activities').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(200),
+  ]);
+  state.diapers = d.data||[]; state.sleeps = s.data||[]; state.feedings = f.data||[]; state.activities = a.data||[];
+}
+
+function currentSleep(){ return state.sleeps.find(s=>!s.end_time) || null; }
+function currentFeeding(){ return state.feedings.find(f=>!f.end_time && f.duration_minutes==null) || null; }
+
+// ---------- render: header ----------
+function renderHeader(){
+  $('#baby-name').textContent = baby.name;
+  $('#baby-age').textContent = ageInfo(baby.birth_date).label;
+}
+
+// ---------- render: home ----------
+function renderHome(){
+  const card = $('#live-status-card');
+  const sleep = currentSleep();
+  const feed = currentFeeding();
+  let html = '';
+  if(sleep){
+    const mins = minsBetween(sleep.start_time, new Date());
+    html += `<h3>${sleep.type==='noite'?'😴 Dormindo (noite)':'😴 Tirando soneca'}</h3>
+      <div class="big-timer"><div class="t" id="sleep-timer">${fmtDur(mins)}</div><div class="l">desde ${fmtTime(sleep.start_time)}</div></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn secondary" style="margin-top:0;" id="btn-interrupt">➕ Interrupção</button>
+        <button class="btn" style="margin-top:0;" id="btn-wake">☀️ Acordou</button>
+      </div>`;
+  } else if(feed){
+    const mins = minsBetween(feed.start_time, new Date());
+    html += `<h3>🍼 Mamando (${feedLabel(feed.type)})</h3>
+      <div class="big-timer"><div class="t" id="feed-timer">${fmtDur(mins)}</div><div class="l">desde ${fmtTime(feed.start_time)}</div></div>
+      <button class="btn" id="btn-stop-feed">⏹ Parar mamada</button>`;
+  } else {
+    const lastD = state.diapers[0], lastF = state.feedings.find(f=>f.end_time || f.duration_minutes!=null), lastS = state.sleeps.find(s=>s.end_time);
+    html += `<h3>Status agora</h3><div class="status-grid">
+      <div class="status-item"><div class="label">🧷 Última fralda</div><div class="value">${lastD?timeAgo(lastD.occurred_at):'—'}</div></div>
+      <div class="status-item"><div class="label">🍼 Última mamada</div><div class="value">${lastF?timeAgo(lastF.end_time||lastF.start_time):'—'}</div></div>
+      <div class="status-item"><div class="label">😴 Acordou há</div><div class="value">${lastS?timeAgo(lastS.end_time):'ainda não dormiu'}</div></div>
+      <div class="status-item"><div class="label">📅 Idade</div><div class="value">${ageInfo(baby.birth_date).months}m ${ageInfo(baby.birth_date).remDays}d</div></div>
+    </div>`;
+  }
+  card.innerHTML = html;
+  if(sleep) $('#btn-interrupt').onclick=()=>openInterruptionSheet(sleep);
+  if(sleep) $('#btn-wake').onclick=()=>endSleep(sleep);
+  if(feed) $('#btn-stop-feed').onclick=()=>openStopFeedSheet(feed);
+
+  document.querySelectorAll('.quick-btn').forEach(b=>{
+    b.classList.toggle('active', (b.dataset.action==='sono'&&sleep) || (b.dataset.action==='mamada'&&feed));
+    b.onclick = ()=>{
+      if(b.dataset.action==='fralda') openDiaperSheet();
+      if(b.dataset.action==='sono') sleep ? null : openStartSleepSheet();
+      if(b.dataset.action==='mamada') feed ? null : openStartFeedSheet();
+      if(b.dataset.action==='atividade') openActivitySheet();
+    };
+  });
+
+  // recent list (mix last 8 events)
+  const items = allEventsSorted().slice(0,8);
+  $('#recent-list').innerHTML = items.length ? items.map(renderTimelineItem).join('') : '<div class="empty">Nenhum registro ainda</div>';
+  attachDeleteHandlers('#recent-list');
+}
+
+function feedLabel(t){
+  return {peito_esq:'peito esq.',peito_dir:'peito dir.',peito_ambos:'ambos os peitos',mamadeira:'mamadeira',solido:'sólido'}[t]||t;
+}
+function diaperLabel(t){ return {xixi:'Xixi',coco:'Cocô',ambos:'Xixi e cocô'}[t]||t; }
+
+function allEventsSorted(){
+  const items = [];
+  state.diapers.forEach(d=>items.push({kind:'diaper',time:d.occurred_at,data:d}));
+  state.sleeps.forEach(s=>items.push({kind:'sleep',time:s.start_time,data:s}));
+  state.feedings.forEach(f=>items.push({kind:'feeding',time:f.start_time,data:f}));
+  state.activities.forEach(a=>items.push({kind:'activity',time:a.occurred_at,data:a}));
+  items.sort((a,b)=> new Date(b.time)-new Date(a.time));
+  return items;
+}
+
+function renderTimelineItem(it){
+  const d = it.data;
+  let icon='📝', title='', sub='';
+  if(it.kind==='diaper'){ icon = d.type==='coco'?'💩':(d.type==='ambos'?'🧷':'💧'); title = 'Fralda — '+diaperLabel(d.type); sub = fmtTime(d.occurred_at) + (d.notes?' · '+d.notes:''); }
+  else if(it.kind==='sleep'){ icon='😴'; title = (d.type==='noite'?'Sono (noite)':'Soneca') + (d.end_time?'':' — em andamento'); const dur = d.end_time?minsBetween(d.start_time,d.end_time):minsBetween(d.start_time,new Date()); const interr = (d.interruptions||[]).length; sub = fmtTime(d.start_time)+(d.end_time?' – '+fmtTime(d.end_time):'')+' · '+fmtDur(dur)+(interr?' · '+interr+' interrup.':''); }
+  else if(it.kind==='feeding'){ icon='🍼'; title = 'Mamada — '+feedLabel(d.type); const parts=[]; if(d.duration_minutes) parts.push(fmtDur(d.duration_minutes)); if(d.amount_ml) parts.push(d.amount_ml+'ml'); sub = fmtTime(d.start_time)+(parts.length?' · '+parts.join(' · '):'')+(d.notes?' · '+d.notes:''); }
+  else if(it.kind==='activity'){ icon='🧸'; title = d.description; sub = fmtTime(d.occurred_at)+(d.notes?' · '+d.notes:''); }
+  return `<div class="timeline-item" data-kind="${it.kind}" data-id="${d.id}">
+    <div class="icon">${icon}</div>
+    <div class="info"><div class="title">${title}</div><div class="sub">${sub}</div></div>
+    <button class="del" data-kind="${it.kind}" data-id="${d.id}">✕</button>
+  </div>`;
+}
+
+function attachDeleteHandlers(scopeSel){
+  document.querySelectorAll(scopeSel+' .del').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Excluir este registro?')) return;
+      const table = {diaper:'diaper_changes',sleep:'sleep_sessions',feeding:'feedings',activity:'activities'}[btn.dataset.kind];
+      await db.from(table).delete().eq('id', btn.dataset.id);
+      await refreshAll();
+    };
+  });
+}
+
+// ---------- render: historico ----------
+function renderHistorico(){
+  $('#hist-date-label').textContent = fmtDateLabel(state.histDate);
+  const [start,end] = dayRange(state.histDate);
+  const items = allEventsSorted().filter(it => it.time >= start && it.time <= end);
+  $('#hist-list').innerHTML = items.length ? items.map(renderTimelineItem).join('') : '<div class="empty">Sem registros nesse dia</div>';
+  attachDeleteHandlers('#hist-list');
+}
+
+// ---------- render: sono ----------
+const WAKE_WINDOWS = [
+ {maxWeeks:4, label:'0–1 mês', wakeMin:45, wakeMax:60, sleepMin:14*60, sleepMax:17*60, naps:'4–5'},
+ {maxWeeks:8, label:'1–2 meses', wakeMin:60, wakeMax:90, sleepMin:14*60, sleepMax:16*60, naps:'3–4'},
+ {maxWeeks:13, label:'2–3 meses', wakeMin:75, wakeMax:90, sleepMin:14*60, sleepMax:16*60, naps:'3–4'},
+ {maxWeeks:17, label:'3–4 meses', wakeMin:90, wakeMax:120, sleepMin:12*60, sleepMax:15*60, naps:'3'},
+ {maxWeeks:26, label:'4–6 meses', wakeMin:120, wakeMax:150, sleepMin:12*60, sleepMax:15*60, naps:'3'},
+ {maxWeeks:39, label:'6–9 meses', wakeMin:150, wakeMax:210, sleepMin:12*60, sleepMax:14*60, naps:'2–3'},
+ {maxWeeks:52, label:'9–12 meses', wakeMin:180, wakeMax:240, sleepMin:12*60, sleepMax:14*60, naps:'2'},
+ {maxWeeks:78, label:'12–18 meses', wakeMin:240, wakeMax:360, sleepMin:11*60, sleepMax:14*60, naps:'1–2'},
+ {maxWeeks:9999, label:'18–24 meses', wakeMin:300, wakeMax:360, sleepMin:11*60, sleepMax:14*60, naps:'1'},
+];
+function currentWakeWindow(){
+  const weeks = ageInfo(baby.birth_date).weeks;
+  return WAKE_WINDOWS.find(w=>weeks<=w.maxWeeks) || WAKE_WINDOWS[WAKE_WINDOWS.length-1];
+}
+
+function renderSono(){
+  const ww = currentWakeWindow();
+  const sleep = currentSleep();
+  const winCard = $('#sono-window-card');
+  if(sleep){
+    winCard.innerHTML = `<h3>Janela de sono</h3><p style="font-size:14px;">Ana está dormindo agora — sem previsão até ela acordar. 💤</p>`;
+  } else {
+    const lastWake = state.sleeps.find(s=>s.end_time);
+    if(!lastWake){
+      winCard.innerHTML = `<h3>Janela de sono</h3><p style="font-size:14px;">Ainda não há sonecas registradas hoje para calcular a janela.</p>`;
+    } else {
+      const awakeMins = minsBetween(lastWake.end_time, new Date());
+      const from = new Date(new Date(lastWake.end_time).getTime()+ww.wakeMin*60000);
+      const to = new Date(new Date(lastWake.end_time).getTime()+ww.wakeMax*60000);
+      let status, color;
+      if(awakeMins < ww.wakeMin){ status='Ainda cedo — deixe ela aproveitar o tempo acordada.'; }
+      else if(awakeMins <= ww.wakeMax){ status='🎯 Janela ideal para dormir é AGORA.'; }
+      else { status='⏰ Já passou da janela ideal — ela pode estar cansada demais.'; }
+      winCard.innerHTML = `<h3>Janela de sono (${ww.label})</h3>
+        <p style="font-size:14px;margin:6px 0;">Acordada há <b>${fmtDur(awakeMins)}</b>.</p>
+        <p style="font-size:14px;">Próxima janela: <b>${fmtTime(from)} – ${fmtTime(to)}</b></p>
+        <div class="tip">${status}</div>`;
+    }
+  }
+
+  const [start,end] = dayRange(new Date());
+  const todays = state.sleeps.filter(s=>s.start_time>=start && s.start_time<=end);
+  const totalMin = todays.reduce((sum,s)=> sum + minsBetween(s.start_time, s.end_time||new Date()), 0);
+  const totalCard = $('#sono-total-card');
+  const pct = Math.min(100, Math.round(totalMin/ww.sleepMax*100));
+  totalCard.innerHTML = `<h3>Total dormido hoje</h3>
+    <p style="font-size:22px;font-weight:800;margin:4px 0;">${fmtDur(totalMin)}</p>
+    <p style="font-size:13px;color:var(--muted);">Recomendado para a idade: ${fmtDur(ww.sleepMin)} – ${fmtDur(ww.sleepMax)} · ${ww.naps} soneca(s)/dia</p>
+    ${totalMin < ww.sleepMin ? '<div class="tip">Ana está abaixo do recomendado até agora — de olho nas próximas janelas de sono pra compensar.</div>' : ''}`;
+
+  $('#sono-today-list').innerHTML = todays.length ? todays.map(s=>renderTimelineItem({kind:'sleep',time:s.start_time,data:s})).join('') : '<div class="empty">Nenhum sono registrado hoje</div>';
+  attachDeleteHandlers('#sono-today-list');
+}
+
+// ---------- render: desenvolvimento (saltos) ----------
+const LEAPS = [
+ {n:1, week:5, title:'Sensações', desc:'Ana começa a perceber com mais intensidade as mudanças no que vê, ouve, sente e cheira ao redor.'},
+ {n:2, week:8, title:'Padrões', desc:'Passa a notar padrões simples se repetindo — sons, movimentos e texturas conhecidas.'},
+ {n:3, week:12, title:'Transições suaves', desc:'Percebe mudanças graduais nos movimentos e começa a controlar melhor mãos e braços.'},
+ {n:4, week:19, title:'Eventos', desc:'Entende que as coisas têm começo, meio e fim — adora brincadeiras com sequência.'},
+ {n:5, week:26, title:'Relações', desc:'Começa a entender distância e relação entre objetos e pessoas (perto/longe, dentro/fora).'},
+ {n:6, week:37, title:'Categorias', desc:'Passa a agrupar coisas parecidas e testar as reações dos pais com mais intenção.'},
+ {n:7, week:46, title:'Sequências', desc:'Entende a ordem de passos simples numa tarefa, como as etapas de se vestir.'},
+ {n:8, week:55, title:'Programas', desc:'Entende que uma tarefa pode ter várias etapas e começa a fazer de conta.'},
+ {n:9, week:64, title:'Princípios', desc:'Começa a entender regras e consequências, testando limites com mais frequência.'},
+ {n:10, week:75, title:'Sistemas', desc:'Entende-se como parte de algo maior e passa a brincar com mais planejamento.'},
+];
+function leapDate(w){ const b=new Date(baby.birth_date+'T00:00:00'); return new Date(b.getTime()+w*7*86400000); }
+
+function renderDev(){
+  const nowWeeks = ageInfo(baby.birth_date).weeks;
+  const nowDays = ageInfo(baby.birth_date).days;
+  let current=null, next=null;
+  LEAPS.forEach(l=>{
+    const fussyStartDay = (l.week*7)-9, peakDay = l.week*7, calmDay = l.week*7+5;
+    if(nowDays>=fussyStartDay && nowDays<=calmDay) current=l;
+    if(!next && l.week*7 > nowDays) next=l;
+  });
+  const curCard = $('#leap-current-card');
+  if(current){
+    curCard.innerHTML = `<div class="leap-card"><span class="pill" style="background:rgba(255,255,255,.5);">Salto ${current.n} · possível fase mais manhosa</span>
+      <h3 style="margin-top:10px;font-size:18px;">${current.title}</h3>
+      <p style="font-size:14px;line-height:1.5;">${current.desc}</p></div>`;
+  } else if(next){
+    const days = next.week*7 - nowDays;
+    curCard.innerHTML = `<div class="card"><h3>Próximo salto</h3>
+      <p style="font-size:14px;">Em cerca de <b>${days} dia(s)</b>, por volta da semana ${next.week}: <b>${next.title}</b></p>
+      <div class="tip">${next.desc}</div></div>`;
+  } else {
+    curCard.innerHTML = `<div class="card"><h3>Saltos de desenvolvimento</h3><p style="font-size:14px;color:var(--muted);">Ana já passou pelos 10 saltos clássicos dos primeiros ~18 meses. 🎉</p></div>`;
+  }
+
+  $('#leap-list').innerHTML = LEAPS.map(l=>{
+    const d = leapDate(l.week);
+    const cls = nowDays >= l.week*7+5 ? 'past' : (current && current.n===l.n ? 'current' : '');
+    return `<div class="leap-list-item ${cls}"><div class="dot"></div>
+      <div class="txt"><div class="t1">Salto ${l.n} — ${l.title}</div><div class="t2">~ semana ${l.week} · ${d.toLocaleDateString('pt-BR')}</div></div>
+    </div>`;
+  }).join('');
+}
+
+// ---------- sheets (bottom modals) ----------
+function sheetShell(title, bodyHtml){
+  $('#sheet-root').innerHTML = `<div class="sheet-overlay" id="overlay">
+    <div class="sheet"><button class="close-x" id="sheet-close">✕</button>
+      <h2>${title}</h2>${bodyHtml}
+    </div></div>`;
+  $('#sheet-close').onclick = closeSheet;
+  $('#overlay').onclick = (e)=>{ if(e.target.id==='overlay') closeSheet(); };
+}
+
+function openDiaperSheet(){
+  sheetShell('🧷 Registrar fralda', `
+    <div class="field"><label>Tipo</label><div class="opt-row" id="diaper-type">
+      <button class="opt-btn" data-v="xixi">💧 Xixi</button>
+      <button class="opt-btn" data-v="coco">💩 Cocô</button>
+      <button class="opt-btn" data-v="ambos">🧷 Ambos</button>
+    </div></div>
+    <div class="field"><label>Horário</label><input type="time" id="diaper-time" value="${fmtTime(new Date())}"></div>
+    <div class="field"><label>Observações (opcional)</label><textarea id="diaper-notes"></textarea></div>
+    <button class="btn" id="diaper-save">Salvar</button>
+  `);
+  let selected='xixi';
+  document.querySelectorAll('#diaper-type .opt-btn').forEach(b=>{
+    if(b.dataset.v===selected) b.classList.add('selected');
+    b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#diaper-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); };
+  });
+  $('#diaper-save').onclick = async ()=>{
+    const t = $('#diaper-time').value.split(':');
+    const dt = new Date(); dt.setHours(+t[0], +t[1], 0, 0);
+    await db.from('diaper_changes').insert({baby_id:baby.id, type:selected, occurred_at:dt.toISOString(), notes:$('#diaper-notes').value||null});
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openStartSleepSheet(){
+  sheetShell('😴 Iniciar sono', `
+    <div class="field"><label>Tipo</label><div class="opt-row" id="sleep-type">
+      <button class="opt-btn" data-v="soneca">🌤 Soneca</button>
+      <button class="opt-btn" data-v="noite">🌙 Sono da noite</button>
+    </div></div>
+    <button class="btn" id="sleep-start-btn">Começar agora</button>
+  `);
+  let selected='soneca';
+  document.querySelectorAll('#sleep-type .opt-btn').forEach(b=>{
+    if(b.dataset.v===selected) b.classList.add('selected');
+    b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#sleep-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); };
+  });
+  $('#sleep-start-btn').onclick = async ()=>{
+    await db.from('sleep_sessions').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), interruptions:[]});
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openInterruptionSheet(sleep){
+  sheetShell('➕ Registrar interrupção', `
+    <div class="field"><label>Duração (minutos)</label><input type="number" id="interr-mins" placeholder="ex: 10" inputmode="numeric"></div>
+    <div class="field"><label>Motivo (opcional)</label><input type="text" id="interr-notes" placeholder="choro, fralda, barulho..."></div>
+    <button class="btn" id="interr-save">Salvar interrupção</button>
+  `);
+  $('#interr-save').onclick = async ()=>{
+    const mins = parseInt($('#interr-mins').value)||0;
+    const list = sleep.interruptions || [];
+    list.push({time: new Date().toISOString(), duration_minutes: mins, notes: $('#interr-notes').value||null});
+    await db.from('sleep_sessions').update({interruptions:list}).eq('id', sleep.id);
+    closeSheet(); await refreshAll();
+  };
+}
+
+async function endSleep(sleep){
+  await db.from('sleep_sessions').update({end_time:new Date().toISOString()}).eq('id', sleep.id);
+  await refreshAll();
+}
+
+function openStartFeedSheet(){
+  sheetShell('🍼 Registrar mamada', `
+    <div class="field"><label>Tipo</label><div class="opt-row" id="feed-type">
+      <button class="opt-btn" data-v="peito_esq">Peito esq.</button>
+      <button class="opt-btn" data-v="peito_dir">Peito dir.</button>
+      <button class="opt-btn" data-v="peito_ambos">Ambos</button>
+      <button class="opt-btn" data-v="mamadeira">Mamadeira</button>
+      <button class="opt-btn" data-v="solido">Sólido</button>
+    </div></div>
+    <div id="feed-extra"></div>
+    <button class="btn" id="feed-save">Salvar</button>
+  `);
+  let selected='peito_esq';
+  function renderExtra(){
+    const box = $('#feed-extra');
+    if(selected.startsWith('peito')){
+      box.innerHTML = `<div class="tip">O cronômetro vai iniciar ao salvar. Toque em "Parar mamada" na tela inicial quando ela terminar.</div>`;
+    } else {
+      box.innerHTML = `<div class="field"><label>Quantidade (ml, opcional)</label><input type="number" id="feed-ml" inputmode="numeric"></div>
+        <div class="field"><label>Duração (min, opcional)</label><input type="number" id="feed-dur" inputmode="numeric"></div>
+        <div class="field"><label>Observações</label><textarea id="feed-notes"></textarea></div>`;
+    }
+  }
+  document.querySelectorAll('#feed-type .opt-btn').forEach(b=>{
+    if(b.dataset.v===selected) b.classList.add('selected');
+    b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#feed-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); renderExtra(); };
+  });
+  renderExtra();
+  $('#feed-save').onclick = async ()=>{
+    if(selected.startsWith('peito')){
+      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString()});
+    } else {
+      const ml = $('#feed-ml').value ? parseFloat($('#feed-ml').value) : null;
+      const dur = $('#feed-dur').value ? parseInt($('#feed-dur').value) : null;
+      const now = new Date();
+      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:now.toISOString(), end_time:now.toISOString(), amount_ml:ml, duration_minutes:dur, notes:$('#feed-notes').value||null});
+    }
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openStopFeedSheet(feed){
+  const mins = minsBetween(feed.start_time, new Date());
+  sheetShell('⏹ Finalizar mamada', `
+    <p style="font-size:14px;color:var(--muted);">Duração: <b>${fmtDur(mins)}</b></p>
+    <div class="field"><label>Observações (opcional)</label><textarea id="feed-stop-notes"></textarea></div>
+    <button class="btn" id="feed-stop-save">Salvar</button>
+  `);
+  $('#feed-stop-save').onclick = async ()=>{
+    const now = new Date();
+    await db.from('feedings').update({end_time:now.toISOString(), duration_minutes:minsBetween(feed.start_time, now), notes:$('#feed-stop-notes').value||null}).eq('id', feed.id);
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openActivitySheet(){
+  sheetShell('🧸 Registrar atividade', `
+    <div class="field"><label>O que ela fez?</label><input type="text" id="act-desc" placeholder="ex: banho, tummy time, passeio..."></div>
+    <div class="field"><label>Horário</label><input type="time" id="act-time" value="${fmtTime(new Date())}"></div>
+    <div class="field"><label>Observações (opcional)</label><textarea id="act-notes"></textarea></div>
+    <button class="btn" id="act-save">Salvar</button>
+  `);
+  $('#act-save').onclick = async ()=>{
+    const desc = $('#act-desc').value.trim();
+    if(!desc) return alert('Descreva a atividade');
+    const t = $('#act-time').value.split(':');
+    const dt = new Date(); dt.setHours(+t[0], +t[1], 0, 0);
+    await db.from('activities').insert({baby_id:baby.id, description:desc, occurred_at:dt.toISOString(), notes:$('#act-notes').value||null});
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openSettingsSheet(){
+  sheetShell('⚙️ Configurações', `
+    <div class="field"><label>Nome do bebê</label><input type="text" id="set-name" value="${baby.name}"></div>
+    <div class="field"><label>Data de nascimento</label><input type="date" id="set-birth" value="${baby.birth_date}"></div>
+    <button class="btn" id="set-save">Salvar</button>
+  `);
+  $('#set-save').onclick = async ()=>{
+    await db.from('baby').update({name:$('#set-name').value, birth_date:$('#set-birth').value}).eq('id', baby.id);
+    closeSheet(); await loadBaby(); renderHeader(); await refreshAll();
+  };
+}
+
+// ---------- tabs ----------
+function showTab(name){
+  state.activeTab = name;
+  document.querySelectorAll('.tabcontent').forEach(el=>el.classList.add('hidden'));
+  $('#tab-'+name).classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  renderActive();
+}
+function renderActive(){
+  if(state.activeTab==='home') renderHome();
+  else if(state.activeTab==='historico') renderHistorico();
+  else if(state.activeTab==='sono') renderSono();
+  else if(state.activeTab==='dev') renderDev();
+}
+
+document.querySelectorAll('.tab').forEach(b=> b.onclick = ()=> showTab(b.dataset.tab));
+$('#hist-prev').onclick = ()=>{ state.histDate = new Date(state.histDate.getTime()-86400000); renderHistorico(); };
+$('#hist-next').onclick = ()=>{ state.histDate = new Date(state.histDate.getTime()+86400000); renderHistorico(); };
+$('#open-settings').onclick = openSettingsSheet;
+
+// ---------- refresh / realtime ----------
+async function refreshAll(){
+  await loadAll();
+  renderHeader();
+  renderActive();
+}
+
+async function init(){
+  await loadBaby();
+  if(!baby){
+    $('#onboarding').classList.remove('hidden');
+    $('#ob-birth').valueAsDate = new Date();
+    $('#ob-save').onclick = async ()=>{
+      const name = $('#ob-name').value.trim() || 'Bebê';
+      const birth = $('#ob-birth').value;
+      if(!birth) return alert('Selecione a data de nascimento');
+      const {data} = await db.from('baby').insert({name, birth_date:birth}).select();
+      baby = data[0];
+      $('#onboarding').classList.add('hidden');
+      startApp();
+    };
+    return;
+  }
+  startApp();
+}
+
+async function startApp(){
+  $('#app').classList.remove('hidden');
+  $('#tabbar').classList.remove('hidden');
+  renderHeader();
+  await refreshAll();
+
+  // live timer tick every 30s for in-progress sleep/feed
+  if(state.liveTick) clearInterval(state.liveTick);
+  state.liveTick = setInterval(()=>{ if(state.activeTab==='home') renderHome(); }, 30000);
+
+  // realtime sync across devices
+  db.channel('rotina-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'diaper_changes', filter:`baby_id=eq.${baby.id}`}, refreshAll)
+    .on('postgres_changes', {event:'*', schema:'public', table:'sleep_sessions', filter:`baby_id=eq.${baby.id}`}, refreshAll)
+    .on('postgres_changes', {event:'*', schema:'public', table:'feedings', filter:`baby_id=eq.${baby.id}`}, refreshAll)
+    .on('postgres_changes', {event:'*', schema:'public', table:'activities', filter:`baby_id=eq.${baby.id}`}, refreshAll)
+    .subscribe();
+}
+
+init();
+</script>
+</body>
+</html>
