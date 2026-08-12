@@ -997,19 +997,53 @@ function openDiaperSheet(){
 }
 
 function openStartSleepSheet(){
-  sheetShell('😴 Iniciar sono', `
+  sheetShell('😴 Registrar sono', `
     <div class="field"><label>Tipo</label><div class="opt-row" id="sleep-type">
       <button class="opt-btn" data-v="soneca">🌤 Soneca</button>
       <button class="opt-btn" data-v="noite">🌙 Sono da noite</button>
     </div></div>
+    <div class="field"><label>Quando?</label><div class="opt-row" id="sleep-mode">
+      <button class="opt-btn" data-v="ao_vivo">🔴 Começar agora</button>
+      <button class="opt-btn" data-v="depois">📝 Já aconteceu</button>
+    </div></div>
+    <div id="sleep-extra"></div>
     <button class="btn" id="sleep-start-btn">Começar agora</button>
   `);
-  let selected='soneca';
+  let selected='soneca', mode='ao_vivo';
   document.querySelectorAll('#sleep-type .opt-btn').forEach(b=>{
     if(b.dataset.v===selected) b.classList.add('selected');
     b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#sleep-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); };
   });
+  function renderSleepExtra(){
+    const box = $('#sleep-extra');
+    if(mode==='depois'){
+      box.innerHTML = `
+        <div class="field"><label>Data</label><input type="date" id="sleep-date" value="${fmtDateInput(new Date())}"></div>
+        <div class="field-row">
+          <div class="field"><label>Início</label><input type="time" id="sleep-start-time" value="${fmtTime(new Date())}"></div>
+          <div class="field"><label>Fim</label><input type="time" id="sleep-end-time" value="${fmtTime(new Date())}"></div>
+        </div>`;
+      $('#sleep-start-btn').textContent = 'Salvar';
+    } else {
+      box.innerHTML = '';
+      $('#sleep-start-btn').textContent = 'Começar agora';
+    }
+  }
+  document.querySelectorAll('#sleep-mode .opt-btn').forEach(b=>{
+    if(b.dataset.v===mode) b.classList.add('selected');
+    b.onclick=()=>{ mode=b.dataset.v; document.querySelectorAll('#sleep-mode .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); renderSleepExtra(); };
+  });
+  renderSleepExtra();
   $('#sleep-start-btn').onclick = async ()=>{
+    if(mode==='depois'){
+      const st = $('#sleep-start-time').value.split(':'), et = $('#sleep-end-time').value.split(':');
+      const startDt = new Date($('#sleep-date').value+'T00:00:00'); startDt.setHours(+st[0],+st[1],0,0);
+      const endDt = new Date($('#sleep-date').value+'T00:00:00'); endDt.setHours(+et[0],+et[1],0,0);
+      if(endDt<=startDt) endDt.setDate(endDt.getDate()+1);
+      await db.from('sleep_sessions').insert({baby_id:baby.id, type:selected, start_time:startDt.toISOString(), end_time:endDt.toISOString(), interruptions:[], logged_by:caregiver()});
+      closeSheet(); await refreshAll();
+      return;
+    }
     const {data:active} = await db.from('sleep_sessions').select('id').eq('baby_id',baby.id).is('end_time',null).limit(1);
     if(active && active.length){ alert('Já tem um sono em andamento (talvez registrado no outro celular agora mesmo). Dá uma olhada na tela inicial.'); closeSheet(); await refreshAll(); return; }
     await db.from('sleep_sessions').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), interruptions:[], logged_by:caregiver()});
@@ -1049,15 +1083,33 @@ function openStartFeedSheet(){
     <div id="feed-extra"></div>
     <button class="btn" id="feed-save">Salvar</button>
   `);
-  let selected='peito_esq';
+  let selected='peito_esq', feedMode='ao_vivo';
   function renderExtra(){
     const box = $('#feed-extra');
     if(selected.startsWith('peito')){
-      box.innerHTML = `<div class="tip">O cronômetro vai iniciar ao salvar. Toque em "Parar mamada" na tela inicial quando ela terminar.</div>`;
+      box.innerHTML = `
+        <div class="field"><label>Quando?</label><div class="opt-row" id="feed-mode">
+          <button class="opt-btn ${feedMode==='ao_vivo'?'selected':''}" data-v="ao_vivo">🔴 Começar agora</button>
+          <button class="opt-btn ${feedMode==='depois'?'selected':''}" data-v="depois">📝 Já aconteceu</button>
+        </div></div>
+        ${feedMode==='depois' ? `
+          <div class="field"><label>Data</label><input type="date" id="feed-date" value="${fmtDateInput(new Date())}"></div>
+          <div class="field-row">
+            <div class="field"><label>Início</label><input type="time" id="feed-start-time" value="${fmtTime(new Date())}"></div>
+            <div class="field"><label>Fim</label><input type="time" id="feed-end-time" value="${fmtTime(new Date())}"></div>
+          </div>
+          <div class="field"><label>Observações (opcional)</label><textarea id="feed-notes"></textarea></div>
+        ` : `<div class="tip">O cronômetro vai iniciar ao salvar. Toque em "Parar mamada" na tela inicial quando ela terminar.</div>`}
+      `;
+      document.querySelectorAll('#feed-mode .opt-btn').forEach(b=> b.onclick=()=>{ feedMode=b.dataset.v; renderExtra(); });
+      $('#feed-save').textContent = feedMode==='depois' ? 'Salvar' : 'Começar agora';
     } else {
-      box.innerHTML = `<div class="field"><label>Quantidade (ml, opcional)</label><input type="number" id="feed-ml" inputmode="numeric"></div>
+      box.innerHTML = `<div class="field"><label>Data</label><input type="date" id="feed-date" value="${fmtDateInput(new Date())}"></div>
+        <div class="field"><label>Horário</label><input type="time" id="feed-start-time" value="${fmtTime(new Date())}"></div>
+        <div class="field"><label>Quantidade (ml, opcional)</label><input type="number" id="feed-ml" inputmode="numeric"></div>
         <div class="field"><label>Duração (min, opcional)</label><input type="number" id="feed-dur" inputmode="numeric"></div>
         <div class="field"><label>Observações</label><textarea id="feed-notes"></textarea></div>`;
+      $('#feed-save').textContent = 'Salvar';
     }
   }
   document.querySelectorAll('#feed-type .opt-btn').forEach(b=>{
@@ -1066,15 +1118,22 @@ function openStartFeedSheet(){
   });
   renderExtra();
   $('#feed-save').onclick = async ()=>{
-    if(selected.startsWith('peito')){
+    if(selected.startsWith('peito') && feedMode==='depois'){
+      const st = $('#feed-start-time').value.split(':'), et = $('#feed-end-time').value.split(':');
+      const startDt = new Date($('#feed-date').value+'T00:00:00'); startDt.setHours(+st[0],+st[1],0,0);
+      const endDt = new Date($('#feed-date').value+'T00:00:00'); endDt.setHours(+et[0],+et[1],0,0);
+      if(endDt<=startDt) endDt.setDate(endDt.getDate()+1);
+      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:startDt.toISOString(), end_time:endDt.toISOString(), duration_minutes:minsBetween(startDt,endDt), notes:$('#feed-notes').value||null, logged_by:caregiver()});
+    } else if(selected.startsWith('peito')){
       const {data:active} = await db.from('feedings').select('id').eq('baby_id',baby.id).is('end_time',null).is('duration_minutes',null).limit(1);
       if(active && active.length){ alert('Já tem uma mamada em andamento (talvez registrada no outro celular agora mesmo). Dá uma olhada na tela inicial.'); closeSheet(); await refreshAll(); return; }
       await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), logged_by:caregiver()});
     } else {
       const ml = $('#feed-ml').value ? parseFloat($('#feed-ml').value) : null;
       const dur = $('#feed-dur').value ? parseInt($('#feed-dur').value) : null;
-      const now = new Date();
-      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:now.toISOString(), end_time:now.toISOString(), amount_ml:ml, duration_minutes:dur, notes:$('#feed-notes').value||null, logged_by:caregiver()});
+      const t = $('#feed-start-time').value.split(':');
+      const dt = new Date($('#feed-date').value+'T00:00:00'); dt.setHours(+t[0],+t[1],0,0);
+      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:dt.toISOString(), end_time:dt.toISOString(), amount_ml:ml, duration_minutes:dur, notes:$('#feed-notes').value||null, logged_by:caregiver()});
     }
     closeSheet(); await refreshAll();
   };
