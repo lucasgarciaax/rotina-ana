@@ -12,27 +12,35 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f3a6c1'/%3E%3Ctext x='50' y='66' font-size='58' text-anchor='middle'%3E%F0%9F%8D%BC%3C/text%3E%3C/svg%3E">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f3a6c1'/%3E%3Ctext x='50' y='66' font-size='58' text-anchor='middle'%3E%F0%9F%8D%BC%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
 :root{
-  --pink:#f3a6c1; --pink-light:#fdf3f8; --blue:#a6c8f3; --mint:#a6e3d0;
+  --pink:#f3a6c1; --pink-light:#fdf3f8; --blue:#a6c8f3; --mint:#a6e3d0; --amber:#f3d9a6;
   --ink:#3a2e35; --muted:#8a7a83; --card:#ffffff; --bg:#fdf5f8;
-  --danger:#e57373; --shadow:0 2px 10px rgba(60,30,45,0.08);
+  --danger:#e57373; --good:#5aab8c; --shadow:0 2px 10px rgba(60,30,45,0.08);
   --radius:18px;
 }
 @media (prefers-color-scheme: dark){
   :root{ --ink:#f3e9ee; --muted:#b7a6b0; --card:#2a2029; --bg:#1c1620; --pink-light:#3a2733; }
 }
+:root.force-dark{ --ink:#f3e9ee; --muted:#b7a6b0; --card:#2a2029; --bg:#1c1620; --pink-light:#3a2733; }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
 body{padding-bottom:calc(78px + env(safe-area-inset-bottom)); min-height:100vh;}
 h1,h2,h3{margin:0 0 4px;}
 button{font-family:inherit;}
 .hidden{display:none !important;}
-#app{max-width:520px;margin:0 auto;padding:16px 16px 4px;}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 16px;}
+#app{max-width:560px;margin:0 auto;padding:16px 16px 4px;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 4px 8px;}
 .topbar h1{font-size:22px;}
 .topbar .age{color:var(--muted);font-size:13px;}
+.topbar .right{display:flex;align-items:center;gap:8px;}
+.sync-dot{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+.sync-dot .d{width:7px;height:7px;border-radius:50%;background:var(--good);}
+.sync-dot.syncing .d{background:var(--amber);}
 .gear{background:none;border:none;font-size:22px;cursor:pointer;padding:8px;}
+.streak-badge{display:inline-flex;align-items:center;gap:5px;background:var(--pink-light);color:var(--pink);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;margin-bottom:10px;}
 .card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:14px;}
 .card h3{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:600;}
 .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
@@ -43,32 +51,38 @@ button{font-family:inherit;}
 .quick-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--card);border:none;border-radius:var(--radius);padding:20px 8px;box-shadow:var(--shadow);font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;}
 .quick-btn .emoji{font-size:30px;}
 .quick-btn.active{background:linear-gradient(135deg,var(--pink),var(--blue));color:#fff;}
+.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.mini-btn{display:flex;align-items:center;gap:8px;background:var(--pink-light);border:none;border-radius:14px;padding:12px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;}
+.mini-btn .emoji{font-size:20px;}
 .timeline-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.05);}
 .timeline-item:last-child{border-bottom:none;}
 .timeline-item .icon{font-size:22px;width:34px;text-align:center;}
 .timeline-item .info{flex:1;}
 .timeline-item .info .title{font-weight:600;font-size:14px;}
 .timeline-item .info .sub{font-size:12px;color:var(--muted);}
+.timeline-item .who{display:inline-block;font-size:10px;font-weight:700;color:var(--pink);background:var(--pink-light);border-radius:8px;padding:1px 6px;margin-left:6px;}
 .timeline-item .del{background:none;border:none;color:var(--danger);font-size:18px;cursor:pointer;padding:4px 8px;}
-.tabbar{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);box-shadow:0 -2px 10px rgba(0,0,0,.06);padding:8px 4px calc(8px + env(safe-area-inset-bottom));z-index:20;}
-.tab{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:6px 2px;cursor:pointer;}
-.tab .emoji{font-size:20px;}
+.tabbar{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);box-shadow:0 -2px 10px rgba(0,0,0,.06);padding:6px 2px calc(6px + env(safe-area-inset-bottom));z-index:20;}
+.tab{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:var(--muted);padding:5px 1px;cursor:pointer;}
+.tab .emoji{font-size:19px;}
 .tab.active{color:var(--pink);}
 .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:30;display:flex;align-items:flex-end;}
-.sheet{background:var(--card);width:100%;border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;}
+.sheet{background:var(--card);width:100%;border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;position:relative;}
 .sheet h2{font-size:18px;margin-bottom:14px;}
 .field{margin-bottom:14px;}
 .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;}
 .field input,.field select,.field textarea{width:100%;padding:11px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;}
 .field textarea{resize:vertical;min-height:60px;}
+.field-row{display:flex;gap:10px;}
+.field-row .field{flex:1;}
 .opt-row{display:flex;gap:8px;flex-wrap:wrap;}
 .opt-btn{flex:1;min-width:80px;padding:12px 8px;border-radius:12px;border:2px solid rgba(0,0,0,.08);background:var(--bg);color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;}
 .opt-btn.selected{border-color:var(--pink);background:var(--pink-light);}
 .btn{width:100%;padding:14px;border-radius:14px;border:none;background:var(--pink);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:6px;}
 .btn.secondary{background:var(--bg);color:var(--ink);border:1px solid rgba(0,0,0,.1);}
 .btn.danger{background:var(--danger);}
+.btn.small{width:auto;padding:8px 14px;font-size:13px;margin-top:0;}
 .close-x{position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;}
-.sheet{position:relative;}
 .big-timer{text-align:center;padding:20px 0;}
 .big-timer .t{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;}
 .big-timer .l{color:var(--muted);font-size:13px;margin-top:2px;}
@@ -89,6 +103,20 @@ button{font-family:inherit;}
 .empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px;}
 .tip{background:var(--pink-light);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5;margin-top:10px;}
 .center-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.subtabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px;}
+.subtab{flex-shrink:0;background:var(--card);border:none;box-shadow:var(--shadow);border-radius:20px;padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;}
+.subtab.active{background:var(--pink);color:#fff;}
+.chart-wrap{position:relative;height:180px;margin-top:10px;}
+.list-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.05);gap:10px;}
+.list-row:last-child{border-bottom:none;}
+.list-row .t1{font-weight:600;font-size:14px;}
+.list-row .t2{font-size:12px;color:var(--muted);}
+.vac-suggest{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed rgba(0,0,0,.08);gap:8px;}
+.vac-suggest:last-child{border-bottom:none;}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:14px;font-size:13px;display:flex;align-items:center;gap:12px;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.25);}
+.toast button{background:none;border:none;color:var(--pink);font-weight:700;font-size:13px;cursor:pointer;}
+.photo-thumb{width:100%;max-height:140px;object-fit:cover;border-radius:12px;margin-top:8px;}
+.badge-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
 </style>
 </head>
 <body>
@@ -105,6 +133,13 @@ button{font-family:inherit;}
       <label>Data de nascimento</label>
       <input type="date" id="ob-birth">
     </div>
+    <div class="field">
+      <label>Quem é você?</label>
+      <div class="opt-row" id="ob-who">
+        <button type="button" class="opt-btn selected" data-v="Mamãe">🤱 Mamãe</button>
+        <button type="button" class="opt-btn" data-v="Papai">👨 Papai</button>
+      </div>
+    </div>
     <button class="btn" id="ob-save">Começar a usar</button>
   </div>
 </div>
@@ -116,11 +151,15 @@ button{font-family:inherit;}
       <h1 id="baby-name">Ana</h1>
       <div class="age" id="baby-age">—</div>
     </div>
-    <button class="gear" id="open-settings">⚙️</button>
+    <div class="right">
+      <div class="sync-dot" id="sync-dot"><span class="d"></span><span id="sync-label">sincronizado</span></div>
+      <button class="gear" id="open-settings">⚙️</button>
+    </div>
   </div>
 
   <!-- HOME -->
   <div id="tab-home" class="tabcontent">
+    <div id="streak-wrap"></div>
     <div class="card" id="live-status-card"></div>
 
     <div class="card">
@@ -149,6 +188,7 @@ button{font-family:inherit;}
     <div class="card">
       <div id="hist-list"></div>
     </div>
+    <button class="btn secondary" id="btn-export-pdf">📄 Exportar resumo em PDF (pro pediatra)</button>
   </div>
 
   <!-- SONO -->
@@ -156,14 +196,46 @@ button{font-family:inherit;}
     <div class="card" id="sono-window-card"></div>
     <div class="card" id="sono-total-card"></div>
     <div class="card">
+      <h3>Tendência dos últimos 7 dias</h3>
+      <div class="chart-wrap"><canvas id="sono-trend-chart"></canvas></div>
+    </div>
+    <div class="card">
       <h3>Sonos de hoje</h3>
       <div id="sono-today-list"></div>
     </div>
   </div>
 
+  <!-- SAUDE -->
+  <div id="tab-saude" class="tabcontent hidden">
+    <div class="subtabs" id="saude-subtabs">
+      <button class="subtab active" data-sub="crescimento">📈 Crescimento</button>
+      <button class="subtab" data-sub="vacinas">💉 Vacinas</button>
+      <button class="subtab" data-sub="remedios">💊 Remédios</button>
+      <button class="subtab" data-sub="ordenha">🍼 Ordenha</button>
+    </div>
+    <div id="saude-content"></div>
+  </div>
+
   <!-- DESENVOLVIMENTO -->
   <div id="tab-dev" class="tabcontent hidden">
     <div id="leap-current-card"></div>
+    <div class="card">
+      <h3>Atividades sugeridas pro momento</h3>
+      <div id="leap-activities"></div>
+    </div>
+    <div class="card">
+      <h3>Anotações sobre o salto atual</h3>
+      <div id="leap-notes-list"></div>
+      <textarea id="leap-note-input" placeholder="Como ela está reagindo a essa fase?" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:var(--bg);color:var(--ink);min-height:50px;"></textarea>
+      <button class="btn" id="leap-note-save">Salvar anotação</button>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;">Marcos e conquistas</h3>
+        <button class="btn small" id="btn-add-milestone">+ Adicionar</button>
+      </div>
+      <div id="milestones-list"></div>
+    </div>
     <div class="card">
       <h3>Linha do tempo dos saltos</h3>
       <div id="leap-list"></div>
@@ -176,10 +248,12 @@ button{font-family:inherit;}
   <button class="tab active" data-tab="home"><span class="emoji">🏠</span>Início</button>
   <button class="tab" data-tab="historico"><span class="emoji">📋</span>Histórico</button>
   <button class="tab" data-tab="sono"><span class="emoji">😴</span>Sono</button>
-  <button class="tab" data-tab="dev"><span class="emoji">🌱</span>Desenvolvimento</button>
+  <button class="tab" data-tab="saude"><span class="emoji">💉</span>Saúde</button>
+  <button class="tab" data-tab="dev"><span class="emoji">🌱</span>Salto</button>
 </div>
 
 <div id="sheet-root"></div>
+<div id="toast-root"></div>
 
 <script>
 const SUPABASE_URL = "https://mujljhojmxffmqmijvhb.supabase.co";
@@ -189,15 +263,19 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let baby = null;
 let state = {
   diapers: [], sleeps: [], feedings: [], activities: [],
+  growth: [], milestones: [], vaccinations: [], medications: [], pumpings: [], milkStash: [], leapNotes: [],
   histDate: new Date(),
   activeTab: 'home',
+  activeSaudeSub: 'crescimento',
   liveTick: null,
+  sonoChart: null,
 };
 
 // ---------- helpers ----------
 const $ = sel => document.querySelector(sel);
 const pad = n => String(n).padStart(2,'0');
 function fmtTime(d){ d=new Date(d); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function fmtDateInput(d){ d=new Date(d); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function fmtDateLabel(d){
   const today = new Date(); today.setHours(0,0,0,0);
   const dd = new Date(d); dd.setHours(0,0,0,0);
@@ -237,8 +315,27 @@ function ageInfo(birthDate){
   return {days, weeks, months, remDays,
     label: months<1 ? `${weeks} semana(s) de vida` : `${months} ${months===1?'mês':'meses'} e ${remDays} dia(s)`};
 }
-
+function caregiver(){ return localStorage.getItem('caregiverName') || 'Alguém'; }
 function closeSheet(){ $('#sheet-root').innerHTML=''; }
+function showToast(message, undoFn){
+  const root = $('#toast-root');
+  root.innerHTML = `<div class="toast">${message} ${undoFn?'<button id="toast-undo">Desfazer</button>':''}</div>`;
+  if(undoFn) $('#toast-undo').onclick = ()=>{ root.innerHTML=''; undoFn(); };
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>{ root.innerHTML=''; }, 5000);
+}
+function setSyncing(on){
+  const dot = $('#sync-dot');
+  if(!dot) return;
+  dot.classList.toggle('syncing', on);
+  $('#sync-label').textContent = on ? 'sincronizando…' : 'sincronizado';
+}
+function applyDarkModeOverride(){
+  const pref = localStorage.getItem('darkMode') || 'auto-night';
+  const hour = new Date().getHours();
+  const isNight = hour>=20 || hour<7;
+  document.documentElement.classList.toggle('force-dark', pref==='on' || (pref==='auto-night' && isNight));
+}
 
 // ---------- data load ----------
 async function loadBaby(){
@@ -248,22 +345,46 @@ async function loadBaby(){
 
 async function loadAll(){
   if(!baby) return;
-  const [d,s,f,a] = await Promise.all([
-    db.from('diaper_changes').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(200),
-    db.from('sleep_sessions').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(200),
-    db.from('feedings').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(200),
-    db.from('activities').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(200),
+  setSyncing(true);
+  const [d,s,f,a,g,m,v,med,p,ms,ln] = await Promise.all([
+    db.from('diaper_changes').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(300),
+    db.from('sleep_sessions').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(300),
+    db.from('feedings').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(300),
+    db.from('activities').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(300),
+    db.from('growth_measurements').select('*').eq('baby_id',baby.id).order('measured_at',{ascending:true}).limit(200),
+    db.from('milestones').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(200),
+    db.from('vaccinations').select('*').eq('baby_id',baby.id).order('applied_at',{ascending:false}).limit(200),
+    db.from('medications').select('*').eq('baby_id',baby.id).order('given_at',{ascending:false}).limit(200),
+    db.from('pumping_sessions').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(200),
+    db.from('milk_stash').select('*').eq('baby_id',baby.id).order('stored_at',{ascending:false}).limit(200),
+    db.from('leap_notes').select('*').eq('baby_id',baby.id).order('created_at',{ascending:false}).limit(200),
   ]);
   state.diapers = d.data||[]; state.sleeps = s.data||[]; state.feedings = f.data||[]; state.activities = a.data||[];
+  state.growth = g.data||[]; state.milestones = m.data||[]; state.vaccinations = v.data||[]; state.medications = med.data||[];
+  state.pumpings = p.data||[]; state.milkStash = ms.data||[]; state.leapNotes = ln.data||[];
+  setSyncing(false);
 }
 
 function currentSleep(){ return state.sleeps.find(s=>!s.end_time) || null; }
 function currentFeeding(){ return state.feedings.find(f=>!f.end_time && f.duration_minutes==null) || null; }
+function currentPumping(){ return state.pumpings.find(p=>!p.end_time) || null; }
+
+// ---------- streak ----------
+function computeStreak(){
+  const days = new Set();
+  allEventsSorted().forEach(it=> days.add(fmtDateInput(it.time)));
+  let streak = 0;
+  let cursor = new Date();
+  while(days.has(fmtDateInput(cursor))){ streak++; cursor = new Date(cursor.getTime()-86400000); }
+  return streak;
+}
 
 // ---------- render: header ----------
 function renderHeader(){
   $('#baby-name').textContent = baby.name;
   $('#baby-age').textContent = ageInfo(baby.birth_date).label;
+  const streak = computeStreak();
+  $('#streak-wrap').innerHTML = streak>=2 ? `<div class="streak-badge">🔥 ${streak} dias seguidos registrando</div>` : '';
 }
 
 // ---------- render: home ----------
@@ -309,7 +430,6 @@ function renderHome(){
     };
   });
 
-  // recent list (mix last 8 events)
   const items = allEventsSorted().slice(0,8);
   $('#recent-list').innerHTML = items.length ? items.map(renderTimelineItem).join('') : '<div class="empty">Nenhum registro ainda</div>';
   attachDeleteHandlers('#recent-list');
@@ -319,6 +439,7 @@ function feedLabel(t){
   return {peito_esq:'peito esq.',peito_dir:'peito dir.',peito_ambos:'ambos os peitos',mamadeira:'mamadeira',solido:'sólido'}[t]||t;
 }
 function diaperLabel(t){ return {xixi:'Xixi',coco:'Cocô',ambos:'Xixi e cocô'}[t]||t; }
+function whoTag(logged_by){ return logged_by ? `<span class="who">${logged_by}</span>` : ''; }
 
 function allEventsSorted(){
   const items = [];
@@ -339,7 +460,7 @@ function renderTimelineItem(it){
   else if(it.kind==='activity'){ icon='🧸'; title = d.description; sub = fmtTime(d.occurred_at)+(d.notes?' · '+d.notes:''); }
   return `<div class="timeline-item" data-kind="${it.kind}" data-id="${d.id}">
     <div class="icon">${icon}</div>
-    <div class="info"><div class="title">${title}</div><div class="sub">${sub}</div></div>
+    <div class="info"><div class="title">${title}${whoTag(d.logged_by)}</div><div class="sub">${sub}</div></div>
     <button class="del" data-kind="${it.kind}" data-id="${d.id}">✕</button>
   </div>`;
 }
@@ -380,9 +501,26 @@ function currentWakeWindow(){
   const weeks = ageInfo(baby.birth_date).weeks;
   return WAKE_WINDOWS.find(w=>weeks<=w.maxWeeks) || WAKE_WINDOWS[WAKE_WINDOWS.length-1];
 }
+// Adaptive: blend age-table midpoint with rolling average of Ana's real awake-time-before-sleep (like a simplified SweetSpot)
+function adaptiveWakeWindow(){
+  const ww = currentWakeWindow();
+  const finished = state.sleeps.filter(s=>s.end_time).sort((a,b)=> new Date(a.start_time)-new Date(b.start_time));
+  const gaps = [];
+  for(let i=1;i<finished.length;i++){
+    const gap = minsBetween(finished[i-1].end_time, finished[i].start_time);
+    if(gap>15 && gap<600) gaps.push(gap);
+  }
+  const last7 = gaps.slice(-7);
+  if(last7.length<3) return {min:ww.wakeMin, max:ww.wakeMax, adaptive:false, label:ww.label, sleepMin:ww.sleepMin, sleepMax:ww.sleepMax, naps:ww.naps};
+  const avg = last7.reduce((a,b)=>a+b,0)/last7.length;
+  const blended = Math.round((avg + (ww.wakeMin+ww.wakeMax)/2)/2);
+  const min = Math.max(ww.wakeMin*0.7, blended-15);
+  const max = Math.min(ww.wakeMax*1.3, blended+15);
+  return {min:Math.round(min), max:Math.round(max), adaptive:true, label:ww.label, sleepMin:ww.sleepMin, sleepMax:ww.sleepMax, naps:ww.naps};
+}
 
 function renderSono(){
-  const ww = currentWakeWindow();
+  const ww = adaptiveWakeWindow();
   const sleep = currentSleep();
   const winCard = $('#sono-window-card');
   if(sleep){
@@ -390,19 +528,19 @@ function renderSono(){
   } else {
     const lastWake = state.sleeps.find(s=>s.end_time);
     if(!lastWake){
-      winCard.innerHTML = `<h3>Janela de sono</h3><p style="font-size:14px;">Ainda não há sonecas registradas hoje para calcular a janela.</p>`;
+      winCard.innerHTML = `<h3>Janela de sono</h3><p style="font-size:14px;">Ainda não há sonecas registradas para calcular a janela.</p>`;
     } else {
       const awakeMins = minsBetween(lastWake.end_time, new Date());
-      const from = new Date(new Date(lastWake.end_time).getTime()+ww.wakeMin*60000);
-      const to = new Date(new Date(lastWake.end_time).getTime()+ww.wakeMax*60000);
-      let status, color;
-      if(awakeMins < ww.wakeMin){ status='Ainda cedo — deixe ela aproveitar o tempo acordada.'; }
-      else if(awakeMins <= ww.wakeMax){ status='🎯 Janela ideal para dormir é AGORA.'; }
+      const from = new Date(new Date(lastWake.end_time).getTime()+ww.min*60000);
+      const to = new Date(new Date(lastWake.end_time).getTime()+ww.max*60000);
+      let status;
+      if(awakeMins < ww.min){ status='Ainda cedo — deixe ela aproveitar o tempo acordada.'; }
+      else if(awakeMins <= ww.max){ status='🎯 Janela ideal para dormir é AGORA.'; }
       else { status='⏰ Já passou da janela ideal — ela pode estar cansada demais.'; }
-      winCard.innerHTML = `<h3>Janela de sono (${ww.label})</h3>
+      winCard.innerHTML = `<h3>Janela de sono (${ww.label})${ww.adaptive?' · <span class="pill">ajustada ao histórico</span>':''}</h3>
         <p style="font-size:14px;margin:6px 0;">Acordada há <b>${fmtDur(awakeMins)}</b>.</p>
         <p style="font-size:14px;">Próxima janela: <b>${fmtTime(from)} – ${fmtTime(to)}</b></p>
-        <div class="tip">${status}</div>`;
+        <div class="tip">${status}${ww.adaptive?' (calculado com base nos últimos ciclos reais dela, não só na tabela por idade)':''}</div>`;
     }
   }
 
@@ -410,7 +548,6 @@ function renderSono(){
   const todays = state.sleeps.filter(s=>s.start_time>=start && s.start_time<=end);
   const totalMin = todays.reduce((sum,s)=> sum + minsBetween(s.start_time, s.end_time||new Date()), 0);
   const totalCard = $('#sono-total-card');
-  const pct = Math.min(100, Math.round(totalMin/ww.sleepMax*100));
   totalCard.innerHTML = `<h3>Total dormido hoje</h3>
     <p style="font-size:22px;font-weight:800;margin:4px 0;">${fmtDur(totalMin)}</p>
     <p style="font-size:13px;color:var(--muted);">Recomendado para a idade: ${fmtDur(ww.sleepMin)} – ${fmtDur(ww.sleepMax)} · ${ww.naps} soneca(s)/dia</p>
@@ -418,33 +555,224 @@ function renderSono(){
 
   $('#sono-today-list').innerHTML = todays.length ? todays.map(s=>renderTimelineItem({kind:'sleep',time:s.start_time,data:s})).join('') : '<div class="empty">Nenhum sono registrado hoje</div>';
   attachDeleteHandlers('#sono-today-list');
+
+  renderSonoTrendChart();
+}
+
+function renderSonoTrendChart(){
+  const canvas = $('#sono-trend-chart');
+  if(!canvas || typeof Chart==='undefined') return;
+  const days = [];
+  for(let i=6;i>=0;i--) days.push(new Date(Date.now()-i*86400000));
+  const totals = days.map(d=>{
+    const [s,e] = dayRange(d);
+    return state.sleeps.filter(sl=>sl.start_time>=s && sl.start_time<=e)
+      .reduce((sum,sl)=> sum + minsBetween(sl.start_time, sl.end_time||new Date()), 0)/60;
+  });
+  const labels = days.map(d=> d.toLocaleDateString('pt-BR',{weekday:'short'}));
+  if(state.sonoChart) state.sonoChart.destroy();
+  const isDark = document.documentElement.classList.contains('force-dark') || matchMedia('(prefers-color-scheme: dark)').matches;
+  state.sonoChart = new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Horas dormidas', data: totals, backgroundColor:'#f3a6c1', borderRadius:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ beginAtZero:true, ticks:{color:isDark?'#b7a6b0':'#8a7a83'}, grid:{color:isDark?'#3a2733':'#f0e0e8'} }, x:{ ticks:{color:isDark?'#b7a6b0':'#8a7a83'}, grid:{display:false} } }
+    }
+  });
+}
+
+// ---------- render: saude ----------
+const WHO_MEDIAN_GIRLS = {
+  weightKg: {0:3.2,1:4.2,2:5.1,3:5.8,4:6.4,5:6.9,6:7.3,7:7.6,8:7.9,9:8.2,10:8.5,11:8.7,12:8.9,15:9.6,18:10.2,21:10.9,24:11.5},
+  heightCm: {0:49.1,1:53.7,2:57.1,3:59.8,4:62.1,5:64.0,6:65.7,7:67.3,8:68.7,9:70.1,10:71.5,11:72.8,12:74.0,15:77.5,18:80.7,21:83.7,24:86.4},
+};
+function whoMedianAt(months, kind){
+  const table = WHO_MEDIAN_GIRLS[kind];
+  const keys = Object.keys(table).map(Number).sort((a,b)=>a-b);
+  if(months<=keys[0]) return table[keys[0]];
+  if(months>=keys[keys.length-1]) return table[keys[keys.length-1]];
+  for(let i=0;i<keys.length-1;i++){
+    if(months>=keys[i] && months<=keys[i+1]){
+      const t=(months-keys[i])/(keys[i+1]-keys[i]);
+      return table[keys[i]] + t*(table[keys[i+1]]-table[keys[i]]);
+    }
+  }
+  return null;
+}
+
+const VACCINE_SCHEDULE = [
+ {ageMonths:0, name:'BCG'}, {ageMonths:0, name:'Hepatite B'},
+ {ageMonths:2, name:'Pentavalente (1ª dose)'}, {ageMonths:2, name:'VIP - Poliomielite (1ª dose)'}, {ageMonths:2, name:'Pneumocócica 10 (1ª dose)'}, {ageMonths:2, name:'Rotavírus (1ª dose)'},
+ {ageMonths:3, name:'Meningocócica C (1ª dose)'},
+ {ageMonths:4, name:'Pentavalente (2ª dose)'}, {ageMonths:4, name:'VIP - Poliomielite (2ª dose)'}, {ageMonths:4, name:'Pneumocócica 10 (2ª dose)'}, {ageMonths:4, name:'Rotavírus (2ª dose)'},
+ {ageMonths:5, name:'Meningocócica C (2ª dose)'},
+ {ageMonths:6, name:'Pentavalente (3ª dose)'}, {ageMonths:6, name:'VIP - Poliomielite (3ª dose)'},
+ {ageMonths:9, name:'Febre Amarela'},
+ {ageMonths:12, name:'Tríplice Viral (1ª dose)'}, {ageMonths:12, name:'Pneumocócica 10 (reforço)'}, {ageMonths:12, name:'Meningocócica C (reforço)'},
+ {ageMonths:15, name:'DTP (1º reforço)'}, {ageMonths:15, name:'VOP (1º reforço)'}, {ageMonths:15, name:'Hepatite A'}, {ageMonths:15, name:'Tetra Viral'},
+];
+
+function renderSaude(){
+  document.querySelectorAll('.subtab').forEach(b=> b.classList.toggle('active', b.dataset.sub===state.activeSaudeSub));
+  const box = $('#saude-content');
+  if(state.activeSaudeSub==='crescimento') return renderCrescimento(box);
+  if(state.activeSaudeSub==='vacinas') return renderVacinas(box);
+  if(state.activeSaudeSub==='remedios') return renderRemedios(box);
+  if(state.activeSaudeSub==='ordenha') return renderOrdenha(box);
+}
+
+function renderCrescimento(box){
+  const last = state.growth[state.growth.length-1];
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0;">Medidas</h3>
+        <button class="btn small" id="btn-add-growth">+ Registrar</button>
+      </div>
+      ${last ? `<div class="status-grid" style="margin-top:10px;">
+        <div class="status-item"><div class="label">Peso</div><div class="value">${last.weight_kg?last.weight_kg+' kg':'—'}</div></div>
+        <div class="status-item"><div class="label">Altura</div><div class="value">${last.height_cm?last.height_cm+' cm':'—'}</div></div>
+      </div>` : '<div class="empty">Nenhuma medida registrada ainda</div>'}
+      <div class="tip">📏 As linhas pontilhadas do gráfico mostram a mediana da OMS (referência aproximada para meninas) — é só uma referência informativa, o pediatra é quem avalia o crescimento de verdade.</div>
+    </div>
+    <div class="card"><h3>Peso ao longo do tempo (kg)</h3><div class="chart-wrap"><canvas id="chart-weight"></canvas></div></div>
+    <div class="card"><h3>Altura ao longo do tempo (cm)</h3><div class="chart-wrap"><canvas id="chart-height"></canvas></div></div>
+    <div class="card"><h3>Histórico</h3><div id="growth-list">${state.growth.length? state.growth.slice().reverse().map(g=>`
+      <div class="list-row"><div><div class="t1">${new Date(g.measured_at+'T00:00:00').toLocaleDateString('pt-BR')}</div><div class="t2">${g.weight_kg?g.weight_kg+'kg ':''}${g.height_cm?g.height_cm+'cm ':''}${g.head_circumference_cm?g.head_circumference_cm+'cm (PC)':''}${whoTag(g.logged_by)}</div></div>
+      <button class="del" data-kind="growth" data-id="${g.id}" style="background:none;border:none;color:var(--danger);font-size:18px;">✕</button></div>`).join('') : '<div class="empty">Sem registros</div>'}</div></div>
+  `;
+  $('#btn-add-growth').onclick = openGrowthSheet;
+  document.querySelectorAll('[data-kind="growth"]').forEach(btn=> btn.onclick = async ()=>{ if(confirm('Excluir?')){ await db.from('growth_measurements').delete().eq('id',btn.dataset.id); await refreshAll(); } });
+  drawGrowthChart('chart-weight', state.growth.map(g=>({x:g.measured_at, y:g.weight_kg})).filter(p=>p.y!=null), 'weightKg', '#f3a6c1');
+  drawGrowthChart('chart-height', state.growth.map(g=>({x:g.measured_at, y:g.height_cm})).filter(p=>p.y!=null), 'heightCm', '#a6c8f3');
+}
+
+let growthCharts = {};
+function drawGrowthChart(canvasId, points, whoKind, color){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas || typeof Chart==='undefined') return;
+  if(growthCharts[canvasId]) growthCharts[canvasId].destroy();
+  const labels = points.map(p=>new Date(p.x+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}));
+  const whoLine = points.map(p=>{
+    const months = ageInfo(baby.birth_date).days ? Math.floor((new Date(p.x)-new Date(baby.birth_date+'T00:00:00'))/86400000/30.44) : 0;
+    return whoMedianAt(Math.max(0,months), whoKind);
+  });
+  const isDark = document.documentElement.classList.contains('force-dark') || matchMedia('(prefers-color-scheme: dark)').matches;
+  growthCharts[canvasId] = new Chart(canvas.getContext('2d'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Ana', data: points.map(p=>p.y), borderColor:color, backgroundColor:color, tension:.3 },
+      { label:'Mediana OMS', data: whoLine, borderColor:isDark?'#666':'#ccc', borderDash:[5,5], pointRadius:0 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{labels:{color:isDark?'#b7a6b0':'#8a7a83', font:{size:10}}} },
+      scales:{ y:{ ticks:{color:isDark?'#b7a6b0':'#8a7a83'}, grid:{color:isDark?'#3a2733':'#f0e0e8'} }, x:{ ticks:{color:isDark?'#b7a6b0':'#8a7a83'}, grid:{display:false} } }
+    }
+  });
+}
+
+function renderVacinas(box){
+  const applied = new Set(state.vaccinations.filter(v=>v.applied_at).map(v=>v.vaccine_name));
+  const ageMonths = ageInfo(baby.birth_date).months;
+  box.innerHTML = `
+    <div class="card">
+      <h3>Calendário sugerido (PNI)</h3>
+      <div id="vac-suggest-list">${VACCINE_SCHEDULE.map(v=>`
+        <div class="vac-suggest">
+          <div><div class="t1" style="font-size:13px;font-weight:600;">${v.name}</div><div class="t2" style="font-size:11px;color:var(--muted);">${v.ageMonths===0?'ao nascer':v.ageMonths+' meses'} ${v.ageMonths<=ageMonths?'':'· ainda não chegou a idade'}</div></div>
+          ${applied.has(v.name) ? '<span class="pill">✓ aplicada</span>' : `<button class="btn small mark-vac" data-name="${v.name}" data-age="${v.ageMonths}">Marcar</button>`}
+        </div>`).join('')}</div>
+      <div class="tip">Calendário de referência (PNI Brasil), simplificado — confirme sempre com o posto de saúde/pediatra.</div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="margin:0;">Outras vacinas / histórico</h3><button class="btn small" id="btn-add-vac">+ Adicionar</button></div>
+      <div id="vac-list">${state.vaccinations.length? state.vaccinations.map(v=>`
+        <div class="list-row"><div><div class="t1">${v.vaccine_name}</div><div class="t2">${v.applied_at?new Date(v.applied_at+'T00:00:00').toLocaleDateString('pt-BR'):'sem data'} ${whoTag(v.logged_by)}</div></div>
+        <button class="del" data-kind="vac" data-id="${v.id}" style="background:none;border:none;color:var(--danger);font-size:18px;">✕</button></div>`).join('') : '<div class="empty">Nada registrado ainda</div>'}</div>
+    </div>
+  `;
+  document.querySelectorAll('.mark-vac').forEach(btn=> btn.onclick = ()=> openVaccineSheet(btn.dataset.name));
+  $('#btn-add-vac').onclick = ()=> openVaccineSheet('');
+  document.querySelectorAll('[data-kind="vac"]').forEach(btn=> btn.onclick = async ()=>{ if(confirm('Excluir?')){ await db.from('vaccinations').delete().eq('id',btn.dataset.id); await refreshAll(); } });
+}
+
+function renderRemedios(box){
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="margin:0;">Medicamentos</h3><button class="btn small" id="btn-add-med">+ Registrar</button></div>
+      <div id="med-list">${state.medications.length? state.medications.map(m=>`
+        <div class="list-row"><div><div class="t1">${m.name} ${m.dose?'· '+m.dose:''}</div><div class="t2">${new Date(m.given_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} ${whoTag(m.logged_by)}</div></div>
+        <button class="del" data-kind="med" data-id="${m.id}" style="background:none;border:none;color:var(--danger);font-size:18px;">✕</button></div>`).join('') : '<div class="empty">Nenhum medicamento registrado</div>'}</div>
+    </div>
+  `;
+  $('#btn-add-med').onclick = openMedicationSheet;
+  document.querySelectorAll('[data-kind="med"]').forEach(btn=> btn.onclick = async ()=>{ if(confirm('Excluir?')){ await db.from('medications').delete().eq('id',btn.dataset.id); await refreshAll(); } });
+}
+
+function renderOrdenha(box){
+  const pump = currentPumping();
+  const stash = state.milkStash.filter(s=>!s.used);
+  const totalStash = stash.reduce((a,s)=>a+Number(s.amount_ml),0);
+  box.innerHTML = `
+    <div class="card">
+      ${pump ? `<h3>🍼 Ordenhando (${pump.side})</h3>
+        <div class="big-timer"><div class="t">${fmtDur(minsBetween(pump.start_time,new Date()))}</div><div class="l">desde ${fmtTime(pump.start_time)}</div></div>
+        <button class="btn" id="btn-stop-pump">⏹ Parar ordenha</button>`
+      : `<h3>Registrar ordenha</h3><div class="opt-row" id="pump-side">
+          <button class="opt-btn selected" data-v="esq">Esquerda</button>
+          <button class="opt-btn" data-v="dir">Direita</button>
+          <button class="opt-btn" data-v="ambos">Ambos</button>
+        </div><button class="btn" id="btn-start-pump">Começar agora</button>`}
+    </div>
+    <div class="card">
+      <h3>🧊 Estoque de leite congelado</h3>
+      <p style="font-size:22px;font-weight:800;margin:4px 0;">${totalStash} ml</p>
+      <button class="btn small" id="btn-add-stash">+ Adicionar ao estoque</button>
+      <div id="stash-list" style="margin-top:8px;">${stash.length? stash.map(s=>`
+        <div class="list-row"><div><div class="t1">${s.amount_ml} ml — ${s.location==='freezer'?'freezer':'geladeira'}</div><div class="t2">guardado em ${new Date(s.stored_at+'T00:00:00').toLocaleDateString('pt-BR')}${s.expires_at?' · vence '+new Date(s.expires_at+'T00:00:00').toLocaleDateString('pt-BR'):''}</div></div>
+        <button class="btn small secondary use-stash" data-id="${s.id}">Usar</button></div>`).join('') : '<div class="empty">Estoque vazio</div>'}</div>
+    </div>
+    <div class="card"><h3>Histórico de ordenhas</h3><div id="pump-list">${state.pumpings.filter(p=>p.end_time).slice(0,10).map(p=>`
+      <div class="list-row"><div><div class="t1">${p.side} ${p.amount_ml?'· '+p.amount_ml+'ml':''}</div><div class="t2">${fmtTime(p.start_time)} · ${fmtDur(minsBetween(p.start_time,p.end_time))} ${whoTag(p.logged_by)}</div></div>
+      <button class="del" data-kind="pump" data-id="${p.id}" style="background:none;border:none;color:var(--danger);font-size:18px;">✕</button></div>`).join('') || '<div class="empty">Sem histórico</div>'}</div></div>
+  `;
+  if(pump){ $('#btn-stop-pump').onclick = ()=> openStopPumpSheet(pump); }
+  else {
+    let side='esq';
+    document.querySelectorAll('#pump-side .opt-btn').forEach(b=> b.onclick=()=>{ side=b.dataset.v; document.querySelectorAll('#pump-side .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); });
+    $('#btn-start-pump').onclick = async ()=>{ await db.from('pumping_sessions').insert({baby_id:baby.id, side, start_time:new Date().toISOString(), logged_by:caregiver()}); await refreshAll(); };
+  }
+  $('#btn-add-stash').onclick = openStashSheet;
+  document.querySelectorAll('.use-stash').forEach(btn=> btn.onclick = async ()=>{ await db.from('milk_stash').update({used:true}).eq('id',btn.dataset.id); await refreshAll(); });
+  document.querySelectorAll('[data-kind="pump"]').forEach(btn=> btn.onclick = async ()=>{ if(confirm('Excluir?')){ await db.from('pumping_sessions').delete().eq('id',btn.dataset.id); await refreshAll(); } });
 }
 
 // ---------- render: desenvolvimento (saltos) ----------
 const LEAPS = [
- {n:1, week:5, title:'Sensações', desc:'Ana começa a perceber com mais intensidade as mudanças no que vê, ouve, sente e cheira ao redor.'},
- {n:2, week:8, title:'Padrões', desc:'Passa a notar padrões simples se repetindo — sons, movimentos e texturas conhecidas.'},
- {n:3, week:12, title:'Transições suaves', desc:'Percebe mudanças graduais nos movimentos e começa a controlar melhor mãos e braços.'},
- {n:4, week:19, title:'Eventos', desc:'Entende que as coisas têm começo, meio e fim — adora brincadeiras com sequência.'},
- {n:5, week:26, title:'Relações', desc:'Começa a entender distância e relação entre objetos e pessoas (perto/longe, dentro/fora).'},
- {n:6, week:37, title:'Categorias', desc:'Passa a agrupar coisas parecidas e testar as reações dos pais com mais intenção.'},
- {n:7, week:46, title:'Sequências', desc:'Entende a ordem de passos simples numa tarefa, como as etapas de se vestir.'},
- {n:8, week:55, title:'Programas', desc:'Entende que uma tarefa pode ter várias etapas e começa a fazer de conta.'},
- {n:9, week:64, title:'Princípios', desc:'Começa a entender regras e consequências, testando limites com mais frequência.'},
- {n:10, week:75, title:'Sistemas', desc:'Entende-se como parte de algo maior e passa a brincar com mais planejamento.'},
+ {n:1, week:5, title:'Sensações', desc:'Ana começa a perceber com mais intensidade as mudanças no que vê, ouve, sente e cheira ao redor.', atividades:['Variar texturas ao tocar a pele dela (tecidos macios, ásperos)','Falar de perto, pausadamente, deixando ela ver seu rosto']},
+ {n:2, week:8, title:'Padrões', desc:'Passa a notar padrões simples se repetindo — sons, movimentos e texturas conhecidas.', atividades:['Cantar a mesma música em momentos parecidos do dia','Repetir um gesto simples (bater palma) e observar a reação']},
+ {n:3, week:12, title:'Transições suaves', desc:'Percebe mudanças graduais nos movimentos e começa a controlar melhor mãos e braços.', atividades:['Balançar um chocalho lentamente de um lado a outro','Tempo de barriga pra baixo (tummy time) supervisionado']},
+ {n:4, week:19, title:'Eventos', desc:'Entende que as coisas têm começo, meio e fim — adora brincadeiras com sequência.', atividades:['Esconde-esconde simples com um paninho','Brincadeiras com início/fim claro, tipo "1,2,3 já!"']},
+ {n:5, week:26, title:'Relações', desc:'Começa a entender distância e relação entre objetos e pessoas (perto/longe, dentro/fora).', atividades:['Empilhar e derrubar potinhos','Colocar/tirar objetos de dentro de uma caixa']},
+ {n:6, week:37, title:'Categorias', desc:'Passa a agrupar coisas parecidas e testar as reações dos pais com mais intenção.', atividades:['Separar objetos por cor ou tipo brincando','Observar a reação dela ao repetir "não" com calma']},
+ {n:7, week:46, title:'Sequências', desc:'Entende a ordem de passos simples numa tarefa, como as etapas de se vestir.', atividades:['Deixar ela "ajudar" em tarefas com passos simples','Músicas com sequência de gestos (ex: "cabeça, ombro...")']},
+ {n:8, week:55, title:'Programas', desc:'Entende que uma tarefa pode ter várias etapas e começa a fazer de conta.', atividades:['Brincar de faz-de-conta simples (dar comida pra um bichinho)','Jogos com mais de uma etapa (empilhar e depois guardar)']},
+ {n:9, week:64, title:'Princípios', desc:'Começa a entender regras e consequências, testando limites com mais frequência.', atividades:['Reforçar rotina com regras simples e consistentes','Jogos com regras bem básicas (esperar a vez)']},
+ {n:10, week:75, title:'Sistemas', desc:'Entende-se como parte de algo maior e passa a brincar com mais planejamento.', atividades:['Brincadeiras de organizar/arrumar (guardar brinquedos por tipo)','Passeios explicando como as coisas se conectam ao redor']},
 ];
 function leapDate(w){ const b=new Date(baby.birth_date+'T00:00:00'); return new Date(b.getTime()+w*7*86400000); }
 
 function renderDev(){
-  const nowWeeks = ageInfo(baby.birth_date).weeks;
   const nowDays = ageInfo(baby.birth_date).days;
   let current=null, next=null;
   LEAPS.forEach(l=>{
-    const fussyStartDay = (l.week*7)-9, peakDay = l.week*7, calmDay = l.week*7+5;
+    const fussyStartDay = (l.week*7)-9, calmDay = l.week*7+5;
     if(nowDays>=fussyStartDay && nowDays<=calmDay) current=l;
     if(!next && l.week*7 > nowDays) next=l;
   });
   const curCard = $('#leap-current-card');
+  const showLeap = current || next;
   if(current){
     curCard.innerHTML = `<div class="leap-card"><span class="pill" style="background:rgba(255,255,255,.5);">Salto ${current.n} · possível fase mais manhosa</span>
       <h3 style="margin-top:10px;font-size:18px;">${current.title}</h3>
@@ -458,9 +786,29 @@ function renderDev(){
     curCard.innerHTML = `<div class="card"><h3>Saltos de desenvolvimento</h3><p style="font-size:14px;color:var(--muted);">Ana já passou pelos 10 saltos clássicos dos primeiros ~18 meses. 🎉</p></div>`;
   }
 
+  const activeLeap = current || next;
+  $('#leap-activities').innerHTML = activeLeap ? activeLeap.atividades.map(a=>`<div class="tip" style="margin-top:8px;">💡 ${a}</div>`).join('') : '<div class="empty">Sem sugestões no momento</div>';
+
+  const leapNum = activeLeap ? activeLeap.n : null;
+  const notesForLeap = leapNum ? state.leapNotes.filter(n=>n.leap_number===leapNum) : [];
+  $('#leap-notes-list').innerHTML = notesForLeap.length ? notesForLeap.map(n=>`<div class="list-row"><div><div class="t1" style="font-size:13px;">${n.note}</div><div class="t2">${new Date(n.created_at).toLocaleDateString('pt-BR')} ${whoTag(n.logged_by)}</div></div></div>`).join('') : '<div class="empty">Nenhuma anotação ainda</div>';
+  $('#leap-note-save').onclick = async ()=>{
+    const val = $('#leap-note-input').value.trim();
+    if(!val || !leapNum) return;
+    await db.from('leap_notes').insert({baby_id:baby.id, leap_number:leapNum, note:val, logged_by:caregiver()});
+    $('#leap-note-input').value='';
+    await refreshAll();
+  };
+
+  $('#milestones-list').innerHTML = state.milestones.length ? state.milestones.map(m=>`
+    <div class="list-row"><div><div class="t1">🏆 ${m.title}</div><div class="t2">${new Date(m.occurred_at+'T00:00:00').toLocaleDateString('pt-BR')} ${whoTag(m.logged_by)} ${m.notes?'· '+m.notes:''}</div>${m.photo_url?`<img class="photo-thumb" src="${m.photo_url}">`:''}</div>
+    <button class="del" data-kind="milestone" data-id="${m.id}" style="background:none;border:none;color:var(--danger);font-size:18px;">✕</button></div>`).join('') : '<div class="empty">Nenhum marco registrado ainda</div>';
+  document.querySelectorAll('[data-kind="milestone"]').forEach(btn=> btn.onclick = async ()=>{ if(confirm('Excluir?')){ await db.from('milestones').delete().eq('id',btn.dataset.id); await refreshAll(); } });
+  $('#btn-add-milestone').onclick = openMilestoneSheet;
+
   $('#leap-list').innerHTML = LEAPS.map(l=>{
     const d = leapDate(l.week);
-    const cls = nowDays >= l.week*7+5 ? 'past' : (current && current.n===l.n ? 'current' : '');
+    const cls = nowDays >= l.week*7+5 ? 'past' : (activeLeap && activeLeap.n===l.n ? 'current' : '');
     return `<div class="leap-list-item ${cls}"><div class="dot"></div>
       <div class="txt"><div class="t1">Salto ${l.n} — ${l.title}</div><div class="t2">~ semana ${l.week} · ${d.toLocaleDateString('pt-BR')}</div></div>
     </div>`;
@@ -484,7 +832,10 @@ function openDiaperSheet(){
       <button class="opt-btn" data-v="coco">💩 Cocô</button>
       <button class="opt-btn" data-v="ambos">🧷 Ambos</button>
     </div></div>
-    <div class="field"><label>Horário</label><input type="time" id="diaper-time" value="${fmtTime(new Date())}"></div>
+    <div class="field-row">
+      <div class="field"><label>Data</label><input type="date" id="diaper-date" value="${fmtDateInput(new Date())}"></div>
+      <div class="field"><label>Horário</label><input type="time" id="diaper-time" value="${fmtTime(new Date())}"></div>
+    </div>
     <div class="field"><label>Observações (opcional)</label><textarea id="diaper-notes"></textarea></div>
     <button class="btn" id="diaper-save">Salvar</button>
   `);
@@ -495,9 +846,10 @@ function openDiaperSheet(){
   });
   $('#diaper-save').onclick = async ()=>{
     const t = $('#diaper-time').value.split(':');
-    const dt = new Date(); dt.setHours(+t[0], +t[1], 0, 0);
-    await db.from('diaper_changes').insert({baby_id:baby.id, type:selected, occurred_at:dt.toISOString(), notes:$('#diaper-notes').value||null});
+    const dt = new Date($('#diaper-date').value+'T00:00:00'); dt.setHours(+t[0], +t[1], 0, 0);
+    const {data} = await db.from('diaper_changes').insert({baby_id:baby.id, type:selected, occurred_at:dt.toISOString(), notes:$('#diaper-notes').value||null, logged_by:caregiver()}).select();
     closeSheet(); await refreshAll();
+    if(data && data[0]) showToast('Fralda registrada ✓', async ()=>{ await db.from('diaper_changes').delete().eq('id',data[0].id); await refreshAll(); });
   };
 }
 
@@ -515,7 +867,7 @@ function openStartSleepSheet(){
     b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#sleep-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); };
   });
   $('#sleep-start-btn').onclick = async ()=>{
-    await db.from('sleep_sessions').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), interruptions:[]});
+    await db.from('sleep_sessions').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), interruptions:[], logged_by:caregiver()});
     closeSheet(); await refreshAll();
   };
 }
@@ -570,12 +922,12 @@ function openStartFeedSheet(){
   renderExtra();
   $('#feed-save').onclick = async ()=>{
     if(selected.startsWith('peito')){
-      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString()});
+      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), logged_by:caregiver()});
     } else {
       const ml = $('#feed-ml').value ? parseFloat($('#feed-ml').value) : null;
       const dur = $('#feed-dur').value ? parseInt($('#feed-dur').value) : null;
       const now = new Date();
-      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:now.toISOString(), end_time:now.toISOString(), amount_ml:ml, duration_minutes:dur, notes:$('#feed-notes').value||null});
+      await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:now.toISOString(), end_time:now.toISOString(), amount_ml:ml, duration_minutes:dur, notes:$('#feed-notes').value||null, logged_by:caregiver()});
     }
     closeSheet(); await refreshAll();
   };
@@ -598,7 +950,10 @@ function openStopFeedSheet(feed){
 function openActivitySheet(){
   sheetShell('🧸 Registrar atividade', `
     <div class="field"><label>O que ela fez?</label><input type="text" id="act-desc" placeholder="ex: banho, tummy time, passeio..."></div>
-    <div class="field"><label>Horário</label><input type="time" id="act-time" value="${fmtTime(new Date())}"></div>
+    <div class="field-row">
+      <div class="field"><label>Data</label><input type="date" id="act-date" value="${fmtDateInput(new Date())}"></div>
+      <div class="field"><label>Horário</label><input type="time" id="act-time" value="${fmtTime(new Date())}"></div>
+    </div>
     <div class="field"><label>Observações (opcional)</label><textarea id="act-notes"></textarea></div>
     <button class="btn" id="act-save">Salvar</button>
   `);
@@ -606,8 +961,124 @@ function openActivitySheet(){
     const desc = $('#act-desc').value.trim();
     if(!desc) return alert('Descreva a atividade');
     const t = $('#act-time').value.split(':');
-    const dt = new Date(); dt.setHours(+t[0], +t[1], 0, 0);
-    await db.from('activities').insert({baby_id:baby.id, description:desc, occurred_at:dt.toISOString(), notes:$('#act-notes').value||null});
+    const dt = new Date($('#act-date').value+'T00:00:00'); dt.setHours(+t[0], +t[1], 0, 0);
+    await db.from('activities').insert({baby_id:baby.id, description:desc, occurred_at:dt.toISOString(), notes:$('#act-notes').value||null, logged_by:caregiver()});
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openGrowthSheet(){
+  sheetShell('📈 Registrar medida', `
+    <div class="field"><label>Data</label><input type="date" id="g-date" value="${fmtDateInput(new Date())}"></div>
+    <div class="field-row">
+      <div class="field"><label>Peso (kg)</label><input type="number" step="0.01" id="g-weight" placeholder="ex: 6.5"></div>
+      <div class="field"><label>Altura (cm)</label><input type="number" step="0.1" id="g-height" placeholder="ex: 62"></div>
+    </div>
+    <div class="field"><label>Perímetro cefálico (cm, opcional)</label><input type="number" step="0.1" id="g-head"></div>
+    <div class="field"><label>Observações (opcional)</label><textarea id="g-notes"></textarea></div>
+    <button class="btn" id="g-save">Salvar</button>
+  `);
+  $('#g-save').onclick = async ()=>{
+    await db.from('growth_measurements').insert({baby_id:baby.id, measured_at:$('#g-date').value, weight_kg:$('#g-weight').value||null, height_cm:$('#g-height').value||null, head_circumference_cm:$('#g-head').value||null, notes:$('#g-notes').value||null, logged_by:caregiver()});
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openVaccineSheet(prefillName){
+  sheetShell('💉 Registrar vacina', `
+    <div class="field"><label>Nome da vacina</label><input type="text" id="v-name" value="${prefillName}"></div>
+    <div class="field"><label>Data de aplicação</label><input type="date" id="v-date" value="${fmtDateInput(new Date())}"></div>
+    <div class="field"><label>Observações (opcional)</label><textarea id="v-notes" placeholder="lote, reação, local..."></textarea></div>
+    <button class="btn" id="v-save">Salvar</button>
+  `);
+  $('#v-save').onclick = async ()=>{
+    const name = $('#v-name').value.trim();
+    if(!name) return alert('Informe o nome da vacina');
+    await db.from('vaccinations').insert({baby_id:baby.id, vaccine_name:name, applied_at:$('#v-date').value, notes:$('#v-notes').value||null, logged_by:caregiver()});
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openMedicationSheet(){
+  sheetShell('💊 Registrar medicamento', `
+    <div class="field"><label>Nome</label><input type="text" id="m-name" placeholder="ex: Paracetamol"></div>
+    <div class="field"><label>Dose</label><input type="text" id="m-dose" placeholder="ex: 1,5ml"></div>
+    <div class="field-row">
+      <div class="field"><label>Data</label><input type="date" id="m-date" value="${fmtDateInput(new Date())}"></div>
+      <div class="field"><label>Horário</label><input type="time" id="m-time" value="${fmtTime(new Date())}"></div>
+    </div>
+    <div class="field"><label>Observações (opcional)</label><textarea id="m-notes"></textarea></div>
+    <button class="btn" id="m-save">Salvar</button>
+  `);
+  $('#m-save').onclick = async ()=>{
+    const name = $('#m-name').value.trim();
+    if(!name) return alert('Informe o nome do medicamento');
+    const t = $('#m-time').value.split(':');
+    const dt = new Date($('#m-date').value+'T00:00:00'); dt.setHours(+t[0], +t[1], 0, 0);
+    await db.from('medications').insert({baby_id:baby.id, name, dose:$('#m-dose').value||null, given_at:dt.toISOString(), notes:$('#m-notes').value||null, logged_by:caregiver()});
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openStopPumpSheet(pump){
+  sheetShell('⏹ Finalizar ordenha', `
+    <div class="field"><label>Quantidade (ml)</label><input type="number" id="p-ml" inputmode="numeric"></div>
+    <div class="field"><label>Observações (opcional)</label><textarea id="p-notes"></textarea></div>
+    <button class="btn" id="p-save">Salvar</button>
+  `);
+  $('#p-save').onclick = async ()=>{
+    await db.from('pumping_sessions').update({end_time:new Date().toISOString(), amount_ml:$('#p-ml').value||null, notes:$('#p-notes').value||null}).eq('id', pump.id);
+    closeSheet(); await refreshAll();
+  };
+}
+
+function openStashSheet(){
+  sheetShell('🧊 Adicionar ao estoque', `
+    <div class="field"><label>Quantidade (ml)</label><input type="number" id="s-ml" inputmode="numeric"></div>
+    <div class="field"><label>Onde guardou?</label><div class="opt-row" id="s-loc">
+      <button class="opt-btn selected" data-v="freezer">Freezer</button>
+      <button class="opt-btn" data-v="geladeira">Geladeira</button>
+    </div></div>
+    <div class="field"><label>Validade (opcional)</label><input type="date" id="s-exp"></div>
+    <button class="btn" id="s-save">Salvar</button>
+  `);
+  let loc='freezer';
+  document.querySelectorAll('#s-loc .opt-btn').forEach(b=> b.onclick=()=>{ loc=b.dataset.v; document.querySelectorAll('#s-loc .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); });
+  $('#s-save').onclick = async ()=>{
+    const ml = $('#s-ml').value;
+    if(!ml) return alert('Informe a quantidade');
+    await db.from('milk_stash').insert({baby_id:baby.id, amount_ml:ml, location:loc, expires_at:$('#s-exp').value||null, logged_by:caregiver()});
+    closeSheet(); await refreshAll();
+  };
+}
+
+async function uploadPhoto(file){
+  const filename = `${baby.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g,'_')}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/baby-photos/${filename}`, {
+    method:'POST',
+    headers:{ 'Authorization':`Bearer ${SUPABASE_ANON_KEY}`, 'apikey':SUPABASE_ANON_KEY, 'Content-Type':file.type },
+    body:file
+  });
+  if(!res.ok) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/baby-photos/${filename}`;
+}
+
+function openMilestoneSheet(){
+  sheetShell('🏆 Novo marco/conquista', `
+    <div class="field"><label>O que aconteceu?</label><input type="text" id="ms-title" placeholder="ex: primeiro sorriso, sentou sozinha..."></div>
+    <div class="field"><label>Data</label><input type="date" id="ms-date" value="${fmtDateInput(new Date())}"></div>
+    <div class="field"><label>Foto (opcional)</label><input type="file" accept="image/*" id="ms-photo"></div>
+    <div class="field"><label>Observações (opcional)</label><textarea id="ms-notes"></textarea></div>
+    <button class="btn" id="ms-save">Salvar</button>
+  `);
+  $('#ms-save').onclick = async ()=>{
+    const title = $('#ms-title').value.trim();
+    if(!title) return alert('Descreva o marco');
+    const btn = $('#ms-save'); btn.disabled=true; btn.textContent='Salvando...';
+    let photo_url = null;
+    const file = $('#ms-photo').files[0];
+    if(file) photo_url = await uploadPhoto(file);
+    await db.from('milestones').insert({baby_id:baby.id, title, occurred_at:$('#ms-date').value, notes:$('#ms-notes').value||null, photo_url, logged_by:caregiver()});
     closeSheet(); await refreshAll();
   };
 }
@@ -616,12 +1087,67 @@ function openSettingsSheet(){
   sheetShell('⚙️ Configurações', `
     <div class="field"><label>Nome do bebê</label><input type="text" id="set-name" value="${baby.name}"></div>
     <div class="field"><label>Data de nascimento</label><input type="date" id="set-birth" value="${baby.birth_date}"></div>
+    <div class="field"><label>Quem é você?</label><div class="opt-row" id="set-who">
+      <button type="button" class="opt-btn" data-v="Mamãe">🤱 Mamãe</button>
+      <button type="button" class="opt-btn" data-v="Papai">👨 Papai</button>
+    </div></div>
+    <div class="field"><label>Modo escuro</label><div class="opt-row" id="set-dark">
+      <button type="button" class="opt-btn" data-v="auto-night">🌗 Automático à noite</button>
+      <button type="button" class="opt-btn" data-v="on">🌙 Sempre</button>
+      <button type="button" class="opt-btn" data-v="off">☀️ Nunca</button>
+    </div></div>
     <button class="btn" id="set-save">Salvar</button>
   `);
+  const curWho = caregiver();
+  document.querySelectorAll('#set-who .opt-btn').forEach(b=>{ if(b.dataset.v===curWho) b.classList.add('selected'); b.onclick=()=>{ document.querySelectorAll('#set-who .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); }; });
+  const curDark = localStorage.getItem('darkMode')||'auto-night';
+  document.querySelectorAll('#set-dark .opt-btn').forEach(b=>{ if(b.dataset.v===curDark) b.classList.add('selected'); b.onclick=()=>{ document.querySelectorAll('#set-dark .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); }; });
   $('#set-save').onclick = async ()=>{
     await db.from('baby').update({name:$('#set-name').value, birth_date:$('#set-birth').value}).eq('id', baby.id);
+    const who = document.querySelector('#set-who .opt-btn.selected');
+    if(who) localStorage.setItem('caregiverName', who.dataset.v);
+    const dark = document.querySelector('#set-dark .opt-btn.selected');
+    if(dark) localStorage.setItem('darkMode', dark.dataset.v);
+    applyDarkModeOverride();
     closeSheet(); await loadBaby(); renderHeader(); await refreshAll();
   };
+}
+
+// ---------- PDF export ----------
+function exportPdf(){
+  if(typeof window.jspdf === 'undefined'){ alert('Ferramenta de PDF ainda carregando, tenta de novo em alguns segundos.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 15;
+  doc.setFontSize(16); doc.text(`Resumo de rotina — ${baby.name}`, 14, y); y+=8;
+  doc.setFontSize(10); doc.text(`Idade: ${ageInfo(baby.birth_date).label} · Gerado em ${new Date().toLocaleDateString('pt-BR')}`, 14, y); y+=10;
+
+  const last = state.growth[state.growth.length-1];
+  if(last){
+    doc.setFontSize(12); doc.text('Última medida:', 14, y); y+=6;
+    doc.setFontSize(10);
+    doc.text(`Peso: ${last.weight_kg||'-'} kg · Altura: ${last.height_cm||'-'} cm · PC: ${last.head_circumference_cm||'-'} cm (${new Date(last.measured_at+'T00:00:00').toLocaleDateString('pt-BR')})`, 14, y); y+=10;
+  }
+
+  doc.setFontSize(12); doc.text('Últimos 7 dias — resumo de sono e alimentação:', 14, y); y+=7;
+  doc.setFontSize(9);
+  for(let i=6;i>=0;i--){
+    const d = new Date(Date.now()-i*86400000);
+    const [s,e] = dayRange(d);
+    const sleepMin = state.sleeps.filter(sl=>sl.start_time>=s && sl.start_time<=e).reduce((sum,sl)=>sum+minsBetween(sl.start_time, sl.end_time||new Date()),0);
+    const feeds = state.feedings.filter(f=>f.start_time>=s && f.start_time<=e).length;
+    const diapers = state.diapers.filter(dd=>dd.occurred_at>=s && dd.occurred_at<=e).length;
+    doc.text(`${d.toLocaleDateString('pt-BR')}: sono ${fmtDur(sleepMin)} · ${feeds} mamada(s) · ${diapers} troca(s) de fralda`, 14, y); y+=6;
+  }
+  y+=6;
+
+  if(state.vaccinations.length){
+    doc.setFontSize(12); doc.text('Vacinas aplicadas:', 14, y); y+=7;
+    doc.setFontSize(9);
+    state.vaccinations.filter(v=>v.applied_at).forEach(v=>{ doc.text(`${v.vaccine_name} — ${new Date(v.applied_at+'T00:00:00').toLocaleDateString('pt-BR')}`, 14, y); y+=5.5; if(y>280){doc.addPage();y=15;} });
+  }
+
+  doc.save(`rotina-${baby.name.toLowerCase()}-${fmtDateInput(new Date())}.pdf`);
 }
 
 // ---------- tabs ----------
@@ -636,6 +1162,7 @@ function renderActive(){
   if(state.activeTab==='home') renderHome();
   else if(state.activeTab==='historico') renderHistorico();
   else if(state.activeTab==='sono') renderSono();
+  else if(state.activeTab==='saude') renderSaude();
   else if(state.activeTab==='dev') renderDev();
 }
 
@@ -643,6 +1170,9 @@ document.querySelectorAll('.tab').forEach(b=> b.onclick = ()=> showTab(b.dataset
 $('#hist-prev').onclick = ()=>{ state.histDate = new Date(state.histDate.getTime()-86400000); renderHistorico(); };
 $('#hist-next').onclick = ()=>{ state.histDate = new Date(state.histDate.getTime()+86400000); renderHistorico(); };
 $('#open-settings').onclick = openSettingsSheet;
+$('#btn-export-pdf').onclick = exportPdf;
+document.querySelectorAll('#saude-subtabs .subtab').forEach(b=> b.onclick = ()=>{ state.activeSaudeSub = b.dataset.sub; renderSaude(); });
+document.querySelectorAll('#ob-who .opt-btn').forEach(b=> b.onclick=()=>{ document.querySelectorAll('#ob-who .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); });
 
 // ---------- refresh / realtime ----------
 async function refreshAll(){
@@ -652,6 +1182,8 @@ async function refreshAll(){
 }
 
 async function init(){
+  applyDarkModeOverride();
+  setInterval(applyDarkModeOverride, 5*60000);
   await loadBaby();
   if(!baby){
     $('#onboarding').classList.remove('hidden');
@@ -660,6 +1192,8 @@ async function init(){
       const name = $('#ob-name').value.trim() || 'Bebê';
       const birth = $('#ob-birth').value;
       if(!birth) return alert('Selecione a data de nascimento');
+      const who = document.querySelector('#ob-who .opt-btn.selected');
+      localStorage.setItem('caregiverName', who ? who.dataset.v : 'Mamãe');
       const {data} = await db.from('baby').insert({name, birth_date:birth}).select();
       baby = data[0];
       $('#onboarding').classList.add('hidden');
@@ -676,17 +1210,13 @@ async function startApp(){
   renderHeader();
   await refreshAll();
 
-  // live timer tick every 30s for in-progress sleep/feed
   if(state.liveTick) clearInterval(state.liveTick);
   state.liveTick = setInterval(()=>{ if(state.activeTab==='home') renderHome(); }, 30000);
 
-  // realtime sync across devices
-  db.channel('rotina-changes')
-    .on('postgres_changes', {event:'*', schema:'public', table:'diaper_changes', filter:`baby_id=eq.${baby.id}`}, refreshAll)
-    .on('postgres_changes', {event:'*', schema:'public', table:'sleep_sessions', filter:`baby_id=eq.${baby.id}`}, refreshAll)
-    .on('postgres_changes', {event:'*', schema:'public', table:'feedings', filter:`baby_id=eq.${baby.id}`}, refreshAll)
-    .on('postgres_changes', {event:'*', schema:'public', table:'activities', filter:`baby_id=eq.${baby.id}`}, refreshAll)
-    .subscribe();
+  const tables = ['diaper_changes','sleep_sessions','feedings','activities','growth_measurements','milestones','vaccinations','medications','pumping_sessions','milk_stash','leap_notes'];
+  let channel = db.channel('rotina-changes');
+  tables.forEach(t=> channel = channel.on('postgres_changes', {event:'*', schema:'public', table:t, filter:`baby_id=eq.${baby.id}`}, refreshAll));
+  channel.subscribe();
 }
 
 init();
