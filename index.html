@@ -117,6 +117,17 @@ button{font-family:inherit;}
 .toast button{background:none;border:none;color:var(--pink);font-weight:700;font-size:13px;cursor:pointer;}
 .photo-thumb{width:100%;max-height:140px;object-fit:cover;border-radius:12px;margin-top:8px;}
 .badge-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.day-timeline{position:relative;height:34px;background:var(--pink-light);border-radius:10px;margin-top:4px;overflow:hidden;}
+.day-timeline .seg{position:absolute;top:6px;height:22px;border-radius:6px;}
+.day-timeline .tick{position:absolute;top:0;bottom:0;width:2px;}
+.day-timeline-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px;}
+.mood-row{display:flex;gap:8px;justify-content:space-between;margin-top:8px;}
+.mood-btn{flex:1;background:var(--bg);border:2px solid transparent;border-radius:12px;padding:10px 4px;font-size:22px;cursor:pointer;}
+.mood-btn.selected{border-color:var(--pink);background:var(--pink-light);}
+.insight-row{display:flex;align-items:center;gap:6px;font-size:13px;margin-top:6px;}
+.insight-up{color:var(--good);font-weight:700;}
+.insight-down{color:var(--danger);font-weight:700;}
+.leap-calib{display:flex;gap:8px;margin-top:10px;}
 </style>
 </head>
 <body>
@@ -132,6 +143,10 @@ button{font-family:inherit;}
     <div class="field">
       <label>Data de nascimento</label>
       <input type="date" id="ob-birth">
+    </div>
+    <div class="field">
+      <label>Semanas de gestação ao nascer (opcional, só se prematura)</label>
+      <input type="number" id="ob-gestweeks" placeholder="ex: 34" min="20" max="42">
     </div>
     <div class="field">
       <label>Quem é você?</label>
@@ -161,6 +176,7 @@ button{font-family:inherit;}
   <div id="tab-home" class="tabcontent">
     <div id="streak-wrap"></div>
     <div class="card" id="live-status-card"></div>
+    <div class="card" id="mood-card"></div>
 
     <div class="card">
       <h3>Registrar agora</h3>
@@ -186,9 +202,14 @@ button{font-family:inherit;}
       <button id="hist-next">›</button>
     </div>
     <div class="card">
+      <div id="hist-timeline"></div>
       <div id="hist-list"></div>
     </div>
-    <button class="btn secondary" id="btn-export-pdf">📄 Exportar resumo em PDF (pro pediatra)</button>
+    <button class="btn secondary" id="btn-handover">🤝 Resumo pra passar o plantão</button>
+    <div style="display:flex;gap:10px;">
+      <button class="btn secondary" style="margin-top:0;" id="btn-export-pdf">📄 PDF pro pediatra</button>
+      <button class="btn secondary" style="margin-top:0;" id="btn-export-csv">📊 Exportar CSV</button>
+    </div>
   </div>
 
   <!-- SONO -->
@@ -212,6 +233,7 @@ button{font-family:inherit;}
       <button class="subtab" data-sub="vacinas">💉 Vacinas</button>
       <button class="subtab" data-sub="remedios">💊 Remédios</button>
       <button class="subtab" data-sub="ordenha">🍼 Ordenha</button>
+      <button class="subtab" data-sub="consultas">📅 Consultas</button>
     </div>
     <div id="saude-content"></div>
   </div>
@@ -264,6 +286,7 @@ let baby = null;
 let state = {
   diapers: [], sleeps: [], feedings: [], activities: [],
   growth: [], milestones: [], vaccinations: [], medications: [], pumpings: [], milkStash: [], leapNotes: [],
+  appointments: [], moods: [],
   histDate: new Date(),
   activeTab: 'home',
   activeSaudeSub: 'crescimento',
@@ -315,6 +338,12 @@ function ageInfo(birthDate){
   return {days, weeks, months, remDays,
     label: months<1 ? `${weeks} semana(s) de vida` : `${months} ${months===1?'mês':'meses'} e ${remDays} dia(s)`};
 }
+function correctedAgeInfo(){
+  if(!baby.gestational_weeks_at_birth || baby.gestational_weeks_at_birth>=37) return null;
+  const correctionDays = (40-baby.gestational_weeks_at_birth)*7;
+  const adjBirth = new Date(new Date(baby.birth_date+'T00:00:00').getTime()+correctionDays*86400000);
+  return ageInfo(fmtDateInput(adjBirth));
+}
 function caregiver(){ return localStorage.getItem('caregiverName') || 'Alguém'; }
 function closeSheet(){ $('#sheet-root').innerHTML=''; }
 function showToast(message, undoFn){
@@ -346,7 +375,7 @@ async function loadBaby(){
 async function loadAll(){
   if(!baby) return;
   setSyncing(true);
-  const [d,s,f,a,g,m,v,med,p,ms,ln] = await Promise.all([
+  const [d,s,f,a,g,m,v,med,p,ms,ln,ap,mo] = await Promise.all([
     db.from('diaper_changes').select('*').eq('baby_id',baby.id).order('occurred_at',{ascending:false}).limit(300),
     db.from('sleep_sessions').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(300),
     db.from('feedings').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(300),
@@ -358,10 +387,13 @@ async function loadAll(){
     db.from('pumping_sessions').select('*').eq('baby_id',baby.id).order('start_time',{ascending:false}).limit(200),
     db.from('milk_stash').select('*').eq('baby_id',baby.id).order('stored_at',{ascending:false}).limit(200),
     db.from('leap_notes').select('*').eq('baby_id',baby.id).order('created_at',{ascending:false}).limit(200),
+    db.from('appointments').select('*').eq('baby_id',baby.id).order('scheduled_at',{ascending:false}).limit(100),
+    db.from('daily_mood').select('*').eq('baby_id',baby.id).order('mood_date',{ascending:false}).limit(60),
   ]);
   state.diapers = d.data||[]; state.sleeps = s.data||[]; state.feedings = f.data||[]; state.activities = a.data||[];
   state.growth = g.data||[]; state.milestones = m.data||[]; state.vaccinations = v.data||[]; state.medications = med.data||[];
   state.pumpings = p.data||[]; state.milkStash = ms.data||[]; state.leapNotes = ln.data||[];
+  state.appointments = ap.data||[]; state.moods = mo.data||[];
   setSyncing(false);
 }
 
@@ -382,9 +414,29 @@ function computeStreak(){
 // ---------- render: header ----------
 function renderHeader(){
   $('#baby-name').textContent = baby.name;
-  $('#baby-age').textContent = ageInfo(baby.birth_date).label;
+  const corrected = correctedAgeInfo();
+  $('#baby-age').textContent = ageInfo(baby.birth_date).label + (corrected ? ` · corrigida: ${corrected.label}` : '');
   const streak = computeStreak();
   $('#streak-wrap').innerHTML = streak>=2 ? `<div class="streak-badge">🔥 ${streak} dias seguidos registrando</div>` : '';
+  renderMoodCard();
+}
+
+function renderMoodCard(){
+  const today = fmtDateInput(new Date());
+  const todaysMoods = state.moods.filter(m=>m.mood_date===today);
+  const mine = todaysMoods.find(m=>m.caregiver===caregiver());
+  const emojis = ['😞','😕','😐','🙂','😄'];
+  $('#mood-card').innerHTML = `<h3>Como você tá hoje?</h3>
+    <div class="mood-row">${emojis.map((e,i)=>`<button class="mood-btn ${mine&&mine.mood_score===i+1?'selected':''}" data-score="${i+1}">${e}</button>`).join('')}</div>
+    ${todaysMoods.filter(m=>m.caregiver!==caregiver()).map(m=>`<div class="tip" style="margin-top:8px;">${m.caregiver} hoje: ${emojis[m.mood_score-1]} ${m.note?'· '+m.note:''}</div>`).join('')}`;
+  document.querySelectorAll('.mood-btn').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const score = parseInt(btn.dataset.score);
+      if(mine){ await db.from('daily_mood').update({mood_score:score}).eq('id',mine.id); }
+      else { await db.from('daily_mood').insert({baby_id:baby.id, mood_date:today, caregiver:caregiver(), mood_score:score}); }
+      await refreshAll();
+    };
+  });
 }
 
 // ---------- render: home ----------
@@ -454,7 +506,7 @@ function allEventsSorted(){
 function renderTimelineItem(it){
   const d = it.data;
   let icon='📝', title='', sub='';
-  if(it.kind==='diaper'){ icon = d.type==='coco'?'💩':(d.type==='ambos'?'🧷':'💧'); title = 'Fralda — '+diaperLabel(d.type); sub = fmtTime(d.occurred_at) + (d.notes?' · '+d.notes:''); }
+  if(it.kind==='diaper'){ icon = d.type==='coco'?'💩':(d.type==='ambos'?'🧷':'💧'); title = 'Fralda — '+diaperLabel(d.type); const extras=[]; if(d.consistency) extras.push(d.consistency); if(d.color) extras.push(d.color); sub = fmtTime(d.occurred_at) + (extras.length?' · '+extras.join(', '):'') + (d.notes?' · '+d.notes:''); }
   else if(it.kind==='sleep'){ icon='😴'; title = (d.type==='noite'?'Sono (noite)':'Soneca') + (d.end_time?'':' — em andamento'); const dur = d.end_time?minsBetween(d.start_time,d.end_time):minsBetween(d.start_time,new Date()); const interr = (d.interruptions||[]).length; sub = fmtTime(d.start_time)+(d.end_time?' – '+fmtTime(d.end_time):'')+' · '+fmtDur(dur)+(interr?' · '+interr+' interrup.':''); }
   else if(it.kind==='feeding'){ icon='🍼'; title = 'Mamada — '+feedLabel(d.type); const parts=[]; if(d.duration_minutes) parts.push(fmtDur(d.duration_minutes)); if(d.amount_ml) parts.push(d.amount_ml+'ml'); sub = fmtTime(d.start_time)+(parts.length?' · '+parts.join(' · '):'')+(d.notes?' · '+d.notes:''); }
   else if(it.kind==='activity'){ icon='🧸'; title = d.description; sub = fmtTime(d.occurred_at)+(d.notes?' · '+d.notes:''); }
@@ -483,6 +535,30 @@ function renderHistorico(){
   const items = allEventsSorted().filter(it => it.time >= start && it.time <= end);
   $('#hist-list').innerHTML = items.length ? items.map(renderTimelineItem).join('') : '<div class="empty">Sem registros nesse dia</div>';
   attachDeleteHandlers('#hist-list');
+  renderDayTimeline(state.histDate, start, end);
+}
+
+function renderDayTimeline(date, start, end){
+  const dayStart = new Date(start).getTime();
+  const dayLen = 24*3600*1000;
+  const pct = ms => Math.min(100, Math.max(0, (ms-dayStart)/dayLen*100));
+  let segs = '';
+  state.sleeps.filter(s=>s.start_time<end && (s.end_time||new Date().toISOString())>start).forEach(s=>{
+    const from = pct(new Date(s.start_time).getTime());
+    const to = pct(new Date(s.end_time||new Date()).getTime());
+    segs += `<div class="seg" style="left:${from}%;width:${Math.max(0.6,to-from)}%;background:var(--blue);" title="Sono"></div>`;
+  });
+  state.feedings.filter(f=>f.start_time>=start && f.start_time<=end).forEach(f=>{
+    const p = pct(new Date(f.start_time).getTime());
+    segs += `<div class="tick" style="left:${p}%;background:var(--pink);" title="Mamada"></div>`;
+  });
+  state.diapers.filter(d=>d.occurred_at>=start && d.occurred_at<=end).forEach(d=>{
+    const p = pct(new Date(d.occurred_at).getTime());
+    segs += `<div class="tick" style="left:${p}%;background:var(--amber);" title="Fralda"></div>`;
+  });
+  $('#hist-timeline').innerHTML = `<div class="day-timeline">${segs}</div>
+    <div class="day-timeline-labels"><span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>24h</span></div>
+    <div class="tip" style="margin-top:8px;font-size:11px;"><span style="color:var(--blue);">■</span> sono &nbsp; <span style="color:var(--pink);">●</span> mamada &nbsp; <span style="color:var(--amber);">●</span> fralda</div>`;
 }
 
 // ---------- render: sono ----------
@@ -501,9 +577,16 @@ function currentWakeWindow(){
   const weeks = ageInfo(baby.birth_date).weeks;
   return WAKE_WINDOWS.find(w=>weeks<=w.maxWeeks) || WAKE_WINDOWS[WAKE_WINDOWS.length-1];
 }
-// Adaptive: blend age-table midpoint with rolling average of Ana's real awake-time-before-sleep (like a simplified SweetSpot)
-function adaptiveWakeWindow(){
+function baseWakeWindow(){
   const ww = currentWakeWindow();
+  if(baby.wake_window_override_min && baby.wake_window_override_max){
+    return {...ww, wakeMin:baby.wake_window_override_min, wakeMax:baby.wake_window_override_max, label:ww.label+' · ajuste manual'};
+  }
+  return ww;
+}
+// Adaptive: blend age-table (or manual override) midpoint with rolling average of Ana's real awake-time-before-sleep (like a simplified SweetSpot)
+function adaptiveWakeWindow(){
+  const ww = baseWakeWindow();
   const finished = state.sleeps.filter(s=>s.end_time).sort((a,b)=> new Date(a.start_time)-new Date(b.start_time));
   const gaps = [];
   for(let i=1;i<finished.length;i++){
@@ -557,6 +640,27 @@ function renderSono(){
   attachDeleteHandlers('#sono-today-list');
 
   renderSonoTrendChart();
+  renderWeeklyInsight();
+}
+
+function totalSleepBetween(daysAgoStart, daysAgoEnd){
+  const start = new Date(Date.now()-daysAgoStart*86400000).toISOString();
+  const end = new Date(Date.now()-daysAgoEnd*86400000).toISOString();
+  return state.sleeps.filter(s=>s.start_time>=end && s.start_time<start)
+    .reduce((sum,s)=> sum+minsBetween(s.start_time, s.end_time||new Date()), 0);
+}
+function renderWeeklyInsight(){
+  const thisWeek = totalSleepBetween(7,0);
+  const lastWeek = totalSleepBetween(14,7);
+  let html = '';
+  if(lastWeek>=60){
+    const diff = Math.round((thisWeek-lastWeek)/lastWeek*100);
+    if(Math.abs(diff)>=3){
+      html = `<div class="insight-row">${diff>0?'<span class="insight-up">▲</span>':'<span class="insight-down">▼</span>'} Essa semana ela dormiu <b>${Math.abs(diff)}% ${diff>0?'a mais':'a menos'}</b> que a semana passada (${fmtDur(thisWeek)} vs ${fmtDur(lastWeek)}).</div>`;
+    }
+  }
+  const totalCard = $('#sono-total-card');
+  if(html) totalCard.insertAdjacentHTML('beforeend', html);
 }
 
 function renderSonoTrendChart(){
@@ -620,6 +724,20 @@ function renderSaude(){
   if(state.activeSaudeSub==='vacinas') return renderVacinas(box);
   if(state.activeSaudeSub==='remedios') return renderRemedios(box);
   if(state.activeSaudeSub==='ordenha') return renderOrdenha(box);
+  if(state.activeSaudeSub==='consultas') return renderConsultas(box);
+}
+
+function renderConsultas(box){
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="margin:0;">Consultas pediátricas</h3><button class="btn small" id="btn-add-appt">+ Registrar</button></div>
+      <div id="appt-list">${state.appointments.length? state.appointments.map(a=>`
+        <div class="list-row"><div><div class="t1">${new Date(a.scheduled_at+'T00:00:00').toLocaleDateString('pt-BR')}${a.doctor_name?' · '+a.doctor_name:''}</div><div class="t2">${a.weight_kg?a.weight_kg+'kg ':''}${a.height_cm?a.height_cm+'cm ':''}${a.notes?'· '+a.notes:''} ${whoTag(a.logged_by)}</div></div>
+        <button class="del" data-kind="appt" data-id="${a.id}" style="background:none;border:none;color:var(--danger);font-size:18px;">✕</button></div>`).join('') : '<div class="empty">Nenhuma consulta registrada</div>'}</div>
+    </div>
+  `;
+  $('#btn-add-appt').onclick = openAppointmentSheet;
+  document.querySelectorAll('[data-kind="appt"]').forEach(btn=> btn.onclick = async ()=>{ if(confirm('Excluir?')){ await db.from('appointments').delete().eq('id',btn.dataset.id); await refreshAll(); } });
 }
 
 function renderCrescimento(box){
@@ -741,7 +859,11 @@ function renderOrdenha(box){
   else {
     let side='esq';
     document.querySelectorAll('#pump-side .opt-btn').forEach(b=> b.onclick=()=>{ side=b.dataset.v; document.querySelectorAll('#pump-side .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); });
-    $('#btn-start-pump').onclick = async ()=>{ await db.from('pumping_sessions').insert({baby_id:baby.id, side, start_time:new Date().toISOString(), logged_by:caregiver()}); await refreshAll(); };
+    $('#btn-start-pump').onclick = async ()=>{
+      const {data:active} = await db.from('pumping_sessions').select('id').eq('baby_id',baby.id).is('end_time',null).limit(1);
+      if(active && active.length){ alert('Já tem uma ordenha em andamento.'); await refreshAll(); return; }
+      await db.from('pumping_sessions').insert({baby_id:baby.id, side, start_time:new Date().toISOString(), logged_by:caregiver()}); await refreshAll();
+    };
   }
   $('#btn-add-stash').onclick = openStashSheet;
   document.querySelectorAll('.use-stash').forEach(btn=> btn.onclick = async ()=>{ await db.from('milk_stash').update({used:true}).eq('id',btn.dataset.id); await refreshAll(); });
@@ -764,7 +886,7 @@ const LEAPS = [
 function leapDate(w){ const b=new Date(baby.birth_date+'T00:00:00'); return new Date(b.getTime()+w*7*86400000); }
 
 function renderDev(){
-  const nowDays = ageInfo(baby.birth_date).days;
+  const nowDays = ageInfo(baby.birth_date).days - (baby.leap_calibration_days||0);
   let current=null, next=null;
   LEAPS.forEach(l=>{
     const fussyStartDay = (l.week*7)-9, calmDay = l.week*7+5;
@@ -785,6 +907,16 @@ function renderDev(){
   } else {
     curCard.innerHTML = `<div class="card"><h3>Saltos de desenvolvimento</h3><p style="font-size:14px;color:var(--muted);">Ana já passou pelos 10 saltos clássicos dos primeiros ~18 meses. 🎉</p></div>`;
   }
+  curCard.insertAdjacentHTML('beforeend', `<div class="card">
+    <h3>Ela não bate com essa previsão?</h3>
+    <p style="font-size:13px;color:var(--muted);">${baby.leap_calibration_days ? `Ajuste atual: ${baby.leap_calibration_days>0?'saltos atrasados em '+baby.leap_calibration_days+' dia(s)':'saltos adiantados em '+Math.abs(baby.leap_calibration_days)+' dia(s)'}` : 'Sem ajuste manual.'}</p>
+    <div class="leap-calib">
+      <button class="btn secondary" style="margin-top:0;" id="leap-delay">⏪ Ainda não chegou (+7d)</button>
+      <button class="btn secondary" style="margin-top:0;" id="leap-advance">⏩ Já passou (-7d)</button>
+    </div>
+  </div>`);
+  $('#leap-delay').onclick = async ()=>{ await db.from('baby').update({leap_calibration_days:(baby.leap_calibration_days||0)+7}).eq('id',baby.id); await loadBaby(); await refreshAll(); };
+  $('#leap-advance').onclick = async ()=>{ await db.from('baby').update({leap_calibration_days:(baby.leap_calibration_days||0)-7}).eq('id',baby.id); await loadBaby(); await refreshAll(); };
 
   const activeLeap = current || next;
   $('#leap-activities').innerHTML = activeLeap ? activeLeap.atividades.map(a=>`<div class="tip" style="margin-top:8px;">💡 ${a}</div>`).join('') : '<div class="empty">Sem sugestões no momento</div>';
@@ -832,6 +964,7 @@ function openDiaperSheet(){
       <button class="opt-btn" data-v="coco">💩 Cocô</button>
       <button class="opt-btn" data-v="ambos">🧷 Ambos</button>
     </div></div>
+    <div id="diaper-extra"></div>
     <div class="field-row">
       <div class="field"><label>Data</label><input type="date" id="diaper-date" value="${fmtDateInput(new Date())}"></div>
       <div class="field"><label>Horário</label><input type="time" id="diaper-time" value="${fmtTime(new Date())}"></div>
@@ -840,14 +973,24 @@ function openDiaperSheet(){
     <button class="btn" id="diaper-save">Salvar</button>
   `);
   let selected='xixi';
+  function renderDiaperExtra(){
+    $('#diaper-extra').innerHTML = selected!=='xixi' ? `
+      <div class="field-row">
+        <div class="field"><label>Consistência</label><select id="diaper-consistency"><option value="">—</option><option>Mole</option><option>Normal</option><option>Duro</option></select></div>
+        <div class="field"><label>Cor</label><select id="diaper-color"><option value="">—</option><option>Amarelo</option><option>Marrom</option><option>Verde</option><option>Outra</option></select></div>
+      </div>` : '';
+  }
   document.querySelectorAll('#diaper-type .opt-btn').forEach(b=>{
     if(b.dataset.v===selected) b.classList.add('selected');
-    b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#diaper-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); };
+    b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#diaper-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); renderDiaperExtra(); };
   });
+  renderDiaperExtra();
   $('#diaper-save').onclick = async ()=>{
     const t = $('#diaper-time').value.split(':');
     const dt = new Date($('#diaper-date').value+'T00:00:00'); dt.setHours(+t[0], +t[1], 0, 0);
-    const {data} = await db.from('diaper_changes').insert({baby_id:baby.id, type:selected, occurred_at:dt.toISOString(), notes:$('#diaper-notes').value||null, logged_by:caregiver()}).select();
+    const consistency = $('#diaper-consistency') ? $('#diaper-consistency').value||null : null;
+    const color = $('#diaper-color') ? $('#diaper-color').value||null : null;
+    const {data} = await db.from('diaper_changes').insert({baby_id:baby.id, type:selected, occurred_at:dt.toISOString(), notes:$('#diaper-notes').value||null, consistency, color, logged_by:caregiver()}).select();
     closeSheet(); await refreshAll();
     if(data && data[0]) showToast('Fralda registrada ✓', async ()=>{ await db.from('diaper_changes').delete().eq('id',data[0].id); await refreshAll(); });
   };
@@ -867,6 +1010,8 @@ function openStartSleepSheet(){
     b.onclick=()=>{ selected=b.dataset.v; document.querySelectorAll('#sleep-type .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); };
   });
   $('#sleep-start-btn').onclick = async ()=>{
+    const {data:active} = await db.from('sleep_sessions').select('id').eq('baby_id',baby.id).is('end_time',null).limit(1);
+    if(active && active.length){ alert('Já tem um sono em andamento (talvez registrado no outro celular agora mesmo). Dá uma olhada na tela inicial.'); closeSheet(); await refreshAll(); return; }
     await db.from('sleep_sessions').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), interruptions:[], logged_by:caregiver()});
     closeSheet(); await refreshAll();
   };
@@ -922,6 +1067,8 @@ function openStartFeedSheet(){
   renderExtra();
   $('#feed-save').onclick = async ()=>{
     if(selected.startsWith('peito')){
+      const {data:active} = await db.from('feedings').select('id').eq('baby_id',baby.id).is('end_time',null).is('duration_minutes',null).limit(1);
+      if(active && active.length){ alert('Já tem uma mamada em andamento (talvez registrada no outro celular agora mesmo). Dá uma olhada na tela inicial.'); closeSheet(); await refreshAll(); return; }
       await db.from('feedings').insert({baby_id:baby.id, type:selected, start_time:new Date().toISOString(), logged_by:caregiver()});
     } else {
       const ml = $('#feed-ml').value ? parseFloat($('#feed-ml').value) : null;
@@ -1020,6 +1167,26 @@ function openMedicationSheet(){
   };
 }
 
+function openAppointmentSheet(){
+  sheetShell('📅 Registrar consulta', `
+    <div class="field"><label>Data</label><input type="date" id="ap-date" value="${fmtDateInput(new Date())}"></div>
+    <div class="field"><label>Médico(a) (opcional)</label><input type="text" id="ap-doctor"></div>
+    <div class="field-row">
+      <div class="field"><label>Peso (kg)</label><input type="number" step="0.01" id="ap-weight"></div>
+      <div class="field"><label>Altura (cm)</label><input type="number" step="0.1" id="ap-height"></div>
+    </div>
+    <div class="field"><label>Observações do médico</label><textarea id="ap-notes"></textarea></div>
+    <button class="btn" id="ap-save">Salvar</button>
+  `);
+  $('#ap-save').onclick = async ()=>{
+    await db.from('appointments').insert({baby_id:baby.id, scheduled_at:$('#ap-date').value, doctor_name:$('#ap-doctor').value||null, weight_kg:$('#ap-weight').value||null, height_cm:$('#ap-height').value||null, notes:$('#ap-notes').value||null, logged_by:caregiver()});
+    if($('#ap-weight').value || $('#ap-height').value){
+      await db.from('growth_measurements').insert({baby_id:baby.id, measured_at:$('#ap-date').value, weight_kg:$('#ap-weight').value||null, height_cm:$('#ap-height').value||null, notes:'Medido na consulta', logged_by:caregiver()});
+    }
+    closeSheet(); await refreshAll();
+  };
+}
+
 function openStopPumpSheet(pump){
   sheetShell('⏹ Finalizar ordenha', `
     <div class="field"><label>Quantidade (ml)</label><input type="number" id="p-ml" inputmode="numeric"></div>
@@ -1087,6 +1254,7 @@ function openSettingsSheet(){
   sheetShell('⚙️ Configurações', `
     <div class="field"><label>Nome do bebê</label><input type="text" id="set-name" value="${baby.name}"></div>
     <div class="field"><label>Data de nascimento</label><input type="date" id="set-birth" value="${baby.birth_date}"></div>
+    <div class="field"><label>Semanas de gestação ao nascer (só se prematura)</label><input type="number" id="set-gestweeks" min="20" max="42" value="${baby.gestational_weeks_at_birth||''}"></div>
     <div class="field"><label>Quem é você?</label><div class="opt-row" id="set-who">
       <button type="button" class="opt-btn" data-v="Mamãe">🤱 Mamãe</button>
       <button type="button" class="opt-btn" data-v="Papai">👨 Papai</button>
@@ -1096,14 +1264,31 @@ function openSettingsSheet(){
       <button type="button" class="opt-btn" data-v="on">🌙 Sempre</button>
       <button type="button" class="opt-btn" data-v="off">☀️ Nunca</button>
     </div></div>
+    <div class="field"><label>Janela de vigília manual (min), deixe vazio pra usar o padrão por idade</label>
+      <div class="field-row">
+        <input type="number" id="set-ww-min" placeholder="mín (ex: 90)" value="${baby.wake_window_override_min||''}">
+        <input type="number" id="set-ww-max" placeholder="máx (ex: 120)" value="${baby.wake_window_override_max||''}">
+      </div>
+    </div>
     <button class="btn" id="set-save">Salvar</button>
+    <button class="btn secondary" id="set-share">🔗 Compartilhar link do app</button>
   `);
+  $('#set-share').onclick = async ()=>{
+    const url = location.href;
+    if(navigator.share){ try{ await navigator.share({title:'Rotina da '+baby.name, url}); }catch(e){} }
+    else { try{ await navigator.clipboard.writeText(url); showToast('Link copiado ✓'); }catch(e){ alert(url); } }
+  };
   const curWho = caregiver();
   document.querySelectorAll('#set-who .opt-btn').forEach(b=>{ if(b.dataset.v===curWho) b.classList.add('selected'); b.onclick=()=>{ document.querySelectorAll('#set-who .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); }; });
   const curDark = localStorage.getItem('darkMode')||'auto-night';
   document.querySelectorAll('#set-dark .opt-btn').forEach(b=>{ if(b.dataset.v===curDark) b.classList.add('selected'); b.onclick=()=>{ document.querySelectorAll('#set-dark .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); }; });
   $('#set-save').onclick = async ()=>{
-    await db.from('baby').update({name:$('#set-name').value, birth_date:$('#set-birth').value}).eq('id', baby.id);
+    await db.from('baby').update({
+      name:$('#set-name').value, birth_date:$('#set-birth').value,
+      gestational_weeks_at_birth: $('#set-gestweeks').value||null,
+      wake_window_override_min: $('#set-ww-min').value||null,
+      wake_window_override_max: $('#set-ww-max').value||null,
+    }).eq('id', baby.id);
     const who = document.querySelector('#set-who .opt-btn.selected');
     if(who) localStorage.setItem('caregiverName', who.dataset.v);
     const dark = document.querySelector('#set-dark .opt-btn.selected');
@@ -1111,6 +1296,60 @@ function openSettingsSheet(){
     applyDarkModeOverride();
     closeSheet(); await loadBaby(); renderHeader(); await refreshAll();
   };
+}
+
+// ---------- handover summary ----------
+function generateHandoverText(){
+  const hours = 8;
+  const since = new Date(Date.now()-hours*3600000).toISOString();
+  const sleepMin = state.sleeps.filter(s=>s.start_time>=since).reduce((sum,s)=>sum+minsBetween(s.start_time, s.end_time||new Date()),0);
+  const feeds = state.feedings.filter(f=>f.start_time>=since);
+  const diapers = state.diapers.filter(d=>d.occurred_at>=since);
+  const sleep = currentSleep();
+  const lastFeed = state.feedings.find(f=>f.end_time || f.duration_minutes!=null);
+  const lastDiaper = state.diapers[0];
+  let lines = [];
+  lines.push(`📋 Resumo de ${baby.name} — últimas ${hours}h`);
+  lines.push(sleep ? `Está dormindo agora (desde ${fmtTime(sleep.start_time)}).` : `Está acordada.`);
+  lines.push(`Sono total no período: ${fmtDur(sleepMin)}`);
+  lines.push(`Mamadas: ${feeds.length}${lastFeed?' · última às '+fmtTime(lastFeed.end_time||lastFeed.start_time)+' ('+feedLabel(lastFeed.type)+')':''}`);
+  lines.push(`Trocas de fralda: ${diapers.length}${lastDiaper?' · última às '+fmtTime(lastDiaper.occurred_at)+' ('+diaperLabel(lastDiaper.type)+')':''}`);
+  const meds = state.medications.filter(m=>m.given_at>=since);
+  if(meds.length) lines.push(`Remédios dados: ${meds.map(m=>m.name+' às '+fmtTime(m.given_at)).join(', ')}`);
+  return lines.join('\n');
+}
+function openHandoverSheet(){
+  const text = generateHandoverText();
+  sheetShell('🤝 Resumo pra passar o plantão', `
+    <div class="tip" style="white-space:pre-line;font-size:13px;">${text}</div>
+    <button class="btn" id="handover-copy">📋 Copiar texto</button>
+  `);
+  $('#handover-copy').onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(text); showToast('Copiado ✓'); }
+    catch(e){ alert('Não consegui copiar automaticamente — seleciona o texto manualmente.'); }
+  };
+}
+
+// ---------- CSV export ----------
+function exportCsv(){
+  const rows = [['tipo','data','hora','detalhes','duracao_min','quem']];
+  allEventsSorted().forEach(it=>{
+    const d = it.data;
+    const dt = new Date(it.time);
+    let detalhes='', dur='';
+    if(it.kind==='diaper'){ detalhes = diaperLabel(d.type)+(d.consistency?' '+d.consistency:'')+(d.color?' '+d.color:''); }
+    else if(it.kind==='sleep'){ detalhes = d.type; dur = d.end_time?minsBetween(d.start_time,d.end_time):''; }
+    else if(it.kind==='feeding'){ detalhes = feedLabel(d.type)+(d.amount_ml?' '+d.amount_ml+'ml':''); dur = d.duration_minutes||''; }
+    else if(it.kind==='activity'){ detalhes = d.description; }
+    rows.push([it.kind, fmtDateInput(dt), fmtTime(dt), detalhes, dur, d.logged_by||'']);
+  });
+  const csv = rows.map(r=> r.map(c=> `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `rotina-${baby.name.toLowerCase()}-${fmtDateInput(new Date())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ---------- PDF export ----------
@@ -1171,6 +1410,8 @@ $('#hist-prev').onclick = ()=>{ state.histDate = new Date(state.histDate.getTime
 $('#hist-next').onclick = ()=>{ state.histDate = new Date(state.histDate.getTime()+86400000); renderHistorico(); };
 $('#open-settings').onclick = openSettingsSheet;
 $('#btn-export-pdf').onclick = exportPdf;
+$('#btn-export-csv').onclick = exportCsv;
+$('#btn-handover').onclick = openHandoverSheet;
 document.querySelectorAll('#saude-subtabs .subtab').forEach(b=> b.onclick = ()=>{ state.activeSaudeSub = b.dataset.sub; renderSaude(); });
 document.querySelectorAll('#ob-who .opt-btn').forEach(b=> b.onclick=()=>{ document.querySelectorAll('#ob-who .opt-btn').forEach(x=>x.classList.toggle('selected',x===b)); });
 
@@ -1194,7 +1435,8 @@ async function init(){
       if(!birth) return alert('Selecione a data de nascimento');
       const who = document.querySelector('#ob-who .opt-btn.selected');
       localStorage.setItem('caregiverName', who ? who.dataset.v : 'Mamãe');
-      const {data} = await db.from('baby').insert({name, birth_date:birth}).select();
+      const gestweeks = $('#ob-gestweeks').value || null;
+      const {data} = await db.from('baby').insert({name, birth_date:birth, gestational_weeks_at_birth:gestweeks}).select();
       baby = data[0];
       $('#onboarding').classList.add('hidden');
       startApp();
@@ -1213,7 +1455,7 @@ async function startApp(){
   if(state.liveTick) clearInterval(state.liveTick);
   state.liveTick = setInterval(()=>{ if(state.activeTab==='home') renderHome(); }, 30000);
 
-  const tables = ['diaper_changes','sleep_sessions','feedings','activities','growth_measurements','milestones','vaccinations','medications','pumping_sessions','milk_stash','leap_notes'];
+  const tables = ['diaper_changes','sleep_sessions','feedings','activities','growth_measurements','milestones','vaccinations','medications','pumping_sessions','milk_stash','leap_notes','appointments','daily_mood'];
   let channel = db.channel('rotina-changes');
   tables.forEach(t=> channel = channel.on('postgres_changes', {event:'*', schema:'public', table:t, filter:`baby_id=eq.${baby.id}`}, refreshAll));
   channel.subscribe();
